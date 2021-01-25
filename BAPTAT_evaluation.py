@@ -1,5 +1,6 @@
 import torch 
 import matplotlib.pyplot as plt
+import numpy as np
 
 class BAPTAT_evaluator():
 
@@ -57,6 +58,34 @@ class BAPTAT_evaluator():
                      at_final_pred_plot[self.num_frames-1,:,1], 
                      at_final_pred_plot[self.num_frames-1,:,2])
         plt.show()
+
+    
+    def plot_binding_matrix(self, binding_matrix, feature_names): 
+        fig = plt.figure(figsize=(10,10))
+        ax = fig.add_subplot(111)
+        cax = ax.matshow(binding_matrix)            # draws matrix
+        cb = fig.colorbar(cax, ax=ax, shrink=0.7)   # draws colorbar
+
+        ## Adds numbers to plot
+        for (i, j), z in np.ndenumerate(binding_matrix): 
+            # ndenumerate function for generating multidimensional index iterator.
+            ax.text(i, j, '{:0.1f}'.format(z), ha='center', va='center')
+            # adds a text into the plot where i and j are the coordinates
+            # and z is the assigned number 
+
+        ## adding titles
+        ax.set_xticks(np.arange(len(feature_names)))
+        ax.set_xticklabels(feature_names)
+        ax.set_xlabel('observed input')
+        ax.xaxis.set_label_position('top') 
+        ax.set_yticks(np.arange(len(feature_names)))
+        ax.set_yticklabels(feature_names)
+        ax.set_ylabel('input feature')
+
+        plt.title('Binding matrix showing contribution of observed feature to input feature', size = 12, fontweight='bold')
+        plt.show()
+
+        return fig
 
 
 

@@ -235,15 +235,20 @@ while obs_count < num_frames:
 for i in range(tuning_length): 
     at_final_predictions = torch.cat((at_final_predictions, at_predictions[1].reshape(1,45)), 0)
 
+final_binding_matrix = Bs[0]
+final_translation_bias = Cs[0]
+final_rotation_matrix = Rs[0]
 
-print(Bs[0])
-print(Cs[0])
-print(Rs[0])    
+print(f'final binding matrix: {final_binding_matrix}')
+print(f'final translation bias: {final_translation_bias}')
+print(f'final roation matrix: {final_rotation_matrix}')    
 
 
 #### EVALUATION / VISUALIZATION OF RESULTS 
 pred_errors = evaluator.prediction_errors(observations, 
                                           at_final_predictions, 
                                           at_loss_function)
+
+vis_bm = evaluator.plot_binding_matrix(final_binding_matrix, feature_names)
 
 evaluator.help_visualize_devel(observations, at_final_predictions)
