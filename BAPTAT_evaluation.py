@@ -36,6 +36,17 @@ class BAPTAT_evaluator():
         return prediction_error
 
 
+    def plot_at_losses(self, losses): 
+        fig = plt.figure()
+        axes = fig.add_axes([0.1, 0.1, 0.8, 0.8]) 
+        axes.plot(losses, 'r')
+        axes.grid(True)
+        axes.set_xlabel('active tuning runs')
+        axes.set_ylabel('loss')
+        axes.set_title('History of losses during active tuning')
+        plt.show()
+
+
     def help_visualize_devel(self, observations,final_predictions):
         at_final_pred_plot = final_predictions.reshape(self.num_frames, 15, 3)
 
@@ -86,7 +97,6 @@ class BAPTAT_evaluator():
         plt.title('Binding matrix showing contribution of observed feature to input feature', size = 12, fontweight='bold')
         plt.show()
 
-        return fig
 
 
 

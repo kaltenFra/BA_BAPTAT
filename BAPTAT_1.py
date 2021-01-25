@@ -120,6 +120,7 @@ core_model.eval()
 obs_count = 0
 at_inputs = torch.tensor([])
 at_predictions = torch.tensor([])
+at_losses = []
 
 for i in range(tuning_length):
     o = observations[obs_count]
@@ -164,6 +165,7 @@ while obs_count < num_frames:
 
         # calculate error 
         loss = at_loss_function(p, x)
+        at_losses.append(loss)
         print(f'frame: {obs_count} cycle: {cycle} loss: {loss}')
 
         # propagate error back through tuning horizon 
@@ -249,6 +251,8 @@ pred_errors = evaluator.prediction_errors(observations,
                                           at_final_predictions, 
                                           at_loss_function)
 
-vis_bm = evaluator.plot_binding_matrix(final_binding_matrix, feature_names)
+evaluator.plot_at_losses(at_losses)
+
+evaluator.plot_binding_matrix(final_binding_matrix, feature_names)
 
 evaluator.help_visualize_devel(observations, at_final_predictions)
