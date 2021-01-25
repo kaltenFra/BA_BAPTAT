@@ -61,15 +61,16 @@ class BAPTAT_evaluator():
 
     
     def plot_binding_matrix(self, binding_matrix, feature_names): 
-        fig = plt.figure(figsize=(10,10))
+        bm = binding_matrix.detach().numpy()
+        fig = plt.figure(figsize=(20,20))
         ax = fig.add_subplot(111)
-        cax = ax.matshow(binding_matrix)            # draws matrix
+        cax = ax.matshow(bm)            # draws matrix
         cb = fig.colorbar(cax, ax=ax, shrink=0.7)   # draws colorbar
 
         ## Adds numbers to plot
-        for (i, j), z in np.ndenumerate(binding_matrix): 
+        for (i, j), z in np.ndenumerate(bm): 
             # ndenumerate function for generating multidimensional index iterator.
-            ax.text(i, j, '{:0.1f}'.format(z), ha='center', va='center')
+            ax.text(i, j, '{:0.3f}'.format(z), ha='center', va='center')
             # adds a text into the plot where i and j are the coordinates
             # and z is the assigned number 
 
