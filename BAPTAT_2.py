@@ -19,7 +19,7 @@ autograd.set_detect_anomaly(True)
 
 ## Define tuning parameters 
 tuning_length = 10      # length of tuning horizon 
-tuning_cycles = 3       # number of tuning cycles in each iteration 
+tuning_cycles = 1       # number of tuning cycles in each iteration 
 at_loss_function = nn.MSELoss()
 
 at_final_predictions = torch.tensor([])
@@ -27,7 +27,7 @@ B_grads = [None] * tuning_length
 C_grads = [None] * tuning_length
 R_grads = [None] * tuning_length
 
-at_learning_rate = 0.001
+at_learning_rate = 0.0001
 
 
 ## Define data parameters
@@ -45,7 +45,7 @@ data_amc_path = 'Data_Compiler/S35T07.amc'
 ####################### Note: sample needs to be changed in the future
 
 ## Define model parameters 
-model_path = 'CoreLSTM/models/LSTM_2.pt'
+model_path = 'CoreLSTM/models/LSTM_4_good.pt'
 
 ## Define Binding and Perspektive Taking parameters 
 # Binding

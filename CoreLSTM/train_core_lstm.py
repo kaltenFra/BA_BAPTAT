@@ -5,9 +5,12 @@ import matplotlib.pyplot as plt
 # import sys
 # sys.path.insert(0, 'D:\Uni\Kogni\Bachelorarbeit\Code\CoreLSTM\core_lstm.py')
 
+import sys
+sys.path.append('../')
 from CoreLSTM.core_lstm import CORE_NET
 from CoreLSTM.test_core_lstm import LSTM_Tester
 from Data_Compiler.data_preparation import Preprocessor
+
 
 class LSTM_Trainer():
     ## General parameters 
@@ -31,9 +34,9 @@ class LSTM_Trainer():
             for seq, labels in train_sequence:
                 self._optimizer.zero_grad()
 
-                y_pred, state = self._model(seq, state)
+                y_pred, state = self._model(seq)
 
-                single_loss = self._loss_function(y_pred, labels)
+                single_loss = self._loss_function(y_pred, labels[0])
                 single_loss.backward()
                 self._optimizer.step()
 
@@ -43,7 +46,7 @@ class LSTM_Trainer():
                 print(f'epoch: {i:3} loss: {single_loss.item():10.8f}')
         
         print(f'epoch: {i:3} loss: {single_loss.item():10.10f}')
-        
+
         self.save_model(save_path)
         self.plot_losses(losses)
 
@@ -72,16 +75,18 @@ def main():
     frame_samples = 1000
     train_window = 10
     testing_size = 100
+    num_features = 15
+    num_dimensions = 3
 
     # Init tools
-    prepro = Preprocessor(15, 3)
+    prepro = Preprocessor(num_features, num_dimensions)
     trainer = LSTM_Trainer()
     tester = LSTM_Tester()
 
     # Init tools
     data_asf_path = 'Data_Compiler/S35T07.asf'
     data_amc_path = 'Data_Compiler/S35T07.amc'
-    model_save_path = 'CoreLSTM/models/LSTM_1.pt'
+    model_save_path = 'CoreLSTM/models/LSTM_4.pt'
 
     # Preprocess data
     io_seq, dt_train, dt_test = prepro.get_LSTM_data(data_asf_path, 
@@ -91,9 +96,13 @@ def main():
                                                     train_window)
 
     # Train LSTM
-    trainer.train(100, io_seq, model_save_path)
+    epochs = 100
+    losses = trainer.train(epochs, io_seq, model_save_path)
 
     test_input = dt_train[0,-train_window:]
+
+    # Test LSTM
+    tester.test(testing_size, model_save_path, test_input, dt_test, train_window)
     
 
 

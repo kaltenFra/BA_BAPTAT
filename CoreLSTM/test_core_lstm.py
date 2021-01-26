@@ -2,7 +2,11 @@ import torch
 from torch import nn
 import matplotlib.pyplot as plt
 
+import sys
+sys.path.append('../')
 from CoreLSTM.core_lstm import CORE_NET
+from Data_Compiler.data_preparation import Preprocessor
+
 
 class LSTM_Tester(): 
 
@@ -49,3 +53,39 @@ class LSTM_Tester():
         pred, pred_err = self.predict(num_predictions, model, test_input, test_target, train_window)
 
         self.plot_pred_error(pred_err)
+
+
+
+def main():
+    # LSTM parameters
+    frame_samples = 1000
+    train_window = 10
+    testing_size = 100
+    num_features = 15
+    num_dimensions = 3
+
+    # Init tools
+    prepro = Preprocessor(num_features, num_dimensions)
+    tester = LSTM_Tester()
+
+    # Init tools
+    data_asf_path = 'Data_Compiler/S35T07.asf'
+    data_amc_path = 'Data_Compiler/S35T07.amc'
+    model_save_path = 'CoreLSTM/models/LSTM_4.pt'
+
+    # Preprocess data
+    io_seq, dt_train, dt_test = prepro.get_LSTM_data(data_asf_path, 
+                                                    data_amc_path, 
+                                                    frame_samples, 
+                                                    testing_size, 
+                                                    train_window)
+
+    test_input = dt_train[0,-train_window:]
+
+    # Test LSTM
+    tester.test(testing_size, model_save_path, test_input, dt_test, train_window)
+    
+
+
+if __name__ == "__main__":
+    main()
