@@ -9,13 +9,16 @@ class Binder():
     def __init__(self, num_features, gradient_init):
         self.gradient_init = gradient_init
         self.num_features = num_features
-        bm = torch.rand(num_features, num_features)
-        # make matrix stochastic
-        sums = torch.sum(bm, dim=1)
-        for i in range(self.num_features):
-            bm[i] = bm[i]/sums[i]
+        self.binding_matrix = Variable(torch.rand(num_features, num_features), 
+                                       requires_grad=self.gradient_init)
+
+        # bm = torch.rand(num_features, num_features)
+        # # make matrix stochastic
+        # sums = torch.sum(bm, dim=1)
+        # for i in range(self.num_features):
+        #     bm[i] = bm[i]/sums[i]
         
-        self.binding_matrix = Variable(bm, requires_grad=self.gradient_init)
+        # self.binding_matrix = Variable(bm, requires_grad=self.gradient_init)
         # self.binding_matrix = torch.nn.init.uniform_(
         #                         torch.empty(num_features, num_features, 
         #                                     requires_grad=self.gradient_init))
@@ -30,13 +33,16 @@ class Binder():
 
 
     def update_binding_matrix_(self, gradient, learning_rate):
-        bm = self.binding_matrix - learning_rate * gradient
-        # make matrix stochastic
-        sums = torch.sum(bm, dim=1)
-        for i in range(self.num_features):
-            bm[i] = bm[i]/sums[i]
+        self.binding_matrix = Variable(self.binding_matrix - learning_rate * gradient, 
+                                       requires_grad=self.gradient_init)
         
-        self.binding_matrix = Variable(bm, requires_grad=self.gradient_init)
+        # bm = self.binding_matrix - learning_rate * gradient
+        # # make matrix stochastic
+        # sums = torch.sum(bm, dim=1)
+        # for i in range(self.num_features):
+        #     bm[i] = bm[i]/sums[i]
+        
+        # self.binding_matrix = Variable(bm, requires_grad=self.gradient_init)
 
         # self.binding_matrix = Variable(self.binding_matrix - learning_rate * gradient, 
         #                                 requires_grad=self.gradient_init)

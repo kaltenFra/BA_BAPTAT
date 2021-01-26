@@ -32,7 +32,7 @@ at_learning_rate = 0.001
 
 ## Define data parameters
 data_at_unlike_train = True
-num_frames = 90
+num_frames = 400
 num_input_features = 15
 num_input_dimensions = 3
 preprocessor = Preprocessor(num_input_features, num_input_dimensions)
@@ -49,6 +49,8 @@ model_path = 'CoreLSTM/models/LSTM_2.pt'
 
 ## Define Binding and Perspektive Taking parameters 
 # Binding
+bindSM = nn.Softmax(dim=0)  # columnwise
+# bindSM = nn.Softmax(dim=1)  # rowwise
 binder = Binder(num_features=num_input_features, gradient_init=True)
 
 # Perspective Taking
@@ -126,7 +128,8 @@ for i in range(tuning_length):
     o = observations[obs_count]
     obs_count += 1
 
-    x_B = binder.bind(o, Bs[i])
+    # x_B = binder.bind(o, Bs[i])
+    x_B = binder.bind(o, bindSM(Bs[i]))
     x_C = perspective_taker.translate(x_B, Cs[i])
     x_R = perspective_taker.rotate(x_C, Rs[i])
 
@@ -147,6 +150,7 @@ while obs_count < num_frames:
     obs_count += 1
 
     x_B = binder.bind(o, Bs[-1])
+    # x_B = binder.bind(o, bindSM(Bs[-1]))
     x_C = perspective_taker.translate(x_B, Cs[-1])
     x_R = perspective_taker.rotate(x_C, Rs[-1])
 
@@ -210,7 +214,8 @@ while obs_count < num_frames:
         # forward pass from t-H to t with new parameters 
         for i in range(tuning_length):
             o = preprocessor.convert_data_LSTM_to_AT(at_inputs[i])
-            x_B = binder.bind(o, Bs[i])
+            # x_B = binder.bind(o, Bs[i])
+            x_B = binder.bind(o, bindSM(Bs[i]))
             x_C = perspective_taker.translate(x_B, Cs[i])
             x_R = perspective_taker.rotate(x_C, Rs[i])
 
