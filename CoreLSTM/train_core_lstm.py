@@ -2,11 +2,8 @@ import torch
 from torch import nn
 import matplotlib.pyplot as plt
 
-# import sys
-# sys.path.insert(0, 'D:\Uni\Kogni\Bachelorarbeit\Code\CoreLSTM\core_lstm.py')
-
 import sys
-sys.path.append('../')
+sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from CoreLSTM.core_lstm import CORE_NET
 from CoreLSTM.test_core_lstm import LSTM_Tester
 from Data_Compiler.data_preparation import Preprocessor
@@ -86,7 +83,7 @@ def main():
     # Init tools
     data_asf_path = 'Data_Compiler/S35T07.asf'
     data_amc_path = 'Data_Compiler/S35T07.amc'
-    model_save_path = 'CoreLSTM/models/LSTM_4.pt'
+    model_save_path = 'CoreLSTM/models/LSTM_8.pt'
 
     # Preprocess data
     io_seq, dt_train, dt_test = prepro.get_LSTM_data(data_asf_path, 
@@ -96,7 +93,7 @@ def main():
                                                     train_window)
 
     # Train LSTM
-    epochs = 100
+    epochs = 20
     losses = trainer.train(epochs, io_seq, model_save_path)
 
     test_input = dt_train[0,-train_window:]

@@ -3,7 +3,7 @@ from torch import nn
 import matplotlib.pyplot as plt
 
 import sys
-sys.path.append('../')
+sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from CoreLSTM.core_lstm import CORE_NET
 from Data_Compiler.data_preparation import Preprocessor
 
