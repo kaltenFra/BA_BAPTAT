@@ -10,7 +10,7 @@ from Data_Compiler.data_preparation import Preprocessor
 
 class LSTM_Tester(): 
 
-    def __init__(self, loss_function=nn.MSELoss()):
+    def __init__(self, loss_function):
         self._loss_function = loss_function
 
 
@@ -63,10 +63,11 @@ def main():
     testing_size = 100
     num_features = 15
     num_dimensions = 3
+    loss_function=nn.MSELoss()
 
     # Init tools
     prepro = Preprocessor(num_features, num_dimensions)
-    tester = LSTM_Tester()
+    tester = LSTM_Tester(loss_function)
 
     # Init tools
     data_asf_path = 'Data_Compiler/S35T07.asf'

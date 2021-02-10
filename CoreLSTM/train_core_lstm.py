@@ -13,10 +13,12 @@ class LSTM_Trainer():
     ## General parameters 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    def __init__(self, loss_function=nn.MSELoss(), learning_rate=0.0001):
+    def __init__(self, loss_function, learning_rate, momentum):
         self._model = CORE_NET()
         self._loss_function = loss_function
-        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=learning_rate)
+        self._optimizer = torch.optim.SGD(self._model.parameters(), lr=learning_rate, momentum=momentum)
+        # self._optimizer = torch.optim.SGD(self._model.parameters(), lr=learning_rate)
+        # self._optimizer = torch.optim.Adam(self._model.parameters(), lr=learning_rate)
 
         print('Initialized model!')
         print(self._model)
@@ -56,7 +58,7 @@ class LSTM_Trainer():
         axes.plot(losses, 'r')
         axes.grid(True)
         axes.set_xlabel('epochs')
-        axes.set_ylabel('prediction error')
+        axes.set_ylabel('loss')
         axes.set_title('History of MSELoss during training')
         plt.show()
 
@@ -70,30 +72,43 @@ class LSTM_Trainer():
 def main():
     # LSTM parameters
     frame_samples = 1000
-    train_window = 10
+    train_window = 40
     testing_size = 100
     num_features = 15
     num_dimensions = 3
 
+    # Training parameters
+    epochs = 100
+    mse=nn.MSELoss()
+    # loss_function=nn.MSELoss()
+    loss_function= lambda x, y: mse(x, y) * (num_features * num_dimensions)
+    learning_rate=0.00001
+    momentum=0.9
+
     # Init tools
     prepro = Preprocessor(num_features, num_dimensions)
-    trainer = LSTM_Trainer()
-    tester = LSTM_Tester()
+    trainer = LSTM_Trainer(loss_function, learning_rate, momentum)
+    tester = LSTM_Tester(loss_function)
 
     # Init tools
     data_asf_path = 'Data_Compiler/S35T07.asf'
     data_amc_path = 'Data_Compiler/S35T07.amc'
-    model_save_path = 'CoreLSTM/models/LSTM_8.pt'
+    model_save_path = 'CoreLSTM/models/LSTM_25_motion.pt'
 
     # Preprocess data
-    io_seq, dt_train, dt_test = prepro.get_LSTM_data(data_asf_path, 
-                                                    data_amc_path, 
-                                                    frame_samples, 
-                                                    testing_size, 
-                                                    train_window)
+    # io_seq, dt_train, dt_test = prepro.get_LSTM_data(data_asf_path, 
+    #                                                 data_amc_path, 
+    #                                                 frame_samples, 
+    #                                                 testing_size, 
+    #                                                 train_window)
+
+    io_seq, dt_train, dt_test = prepro.get_LSTM_data_motion(data_asf_path, 
+                                                            data_amc_path, 
+                                                            frame_samples, 
+                                                            testing_size, 
+                                                            train_window)
 
     # Train LSTM
-    epochs = 20
     losses = trainer.train(epochs, io_seq, model_save_path)
 
     test_input = dt_train[0,-train_window:]

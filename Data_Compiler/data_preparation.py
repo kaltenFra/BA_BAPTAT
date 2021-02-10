@@ -3,7 +3,7 @@ import torch
 import numpy as np
 
 import sys
-sys.path.append('../')
+sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from Data_Compiler.amc_parser import test_all
 
 class Preprocessor():
@@ -40,12 +40,38 @@ class Preprocessor():
         return inout_seq
 
 
+    def get_motion_data(self, abs_data, num_frames):
+        motion_dt = torch.Tensor(num_frames-1, self._num_features, self._num_dimensions)
+        for i in range(num_frames-1):
+            motion_dt[i] = abs_data[i+1] - abs_data[i]
+        print('Constructed motion data.')
+        return motion_dt
+
+
     def get_LSTM_data(self, asf_path, amc_path, frame_samples, num_test_data, train_window):
         visual_input, selected_joint_names = self.compile_data(asf_path=asf_path, amc_path=amc_path, frame_samples=frame_samples)
 
         visual_input = visual_input.permute(1,0,2)
         visual_input = self.std_scale_data(visual_input, 1)
         visual_input = visual_input.reshape(1, frame_samples, self._num_dimensions*self._num_features)
+
+        train_data = visual_input[:,:-num_test_data,:]
+        test_data = visual_input[:,-num_test_data:,:]
+
+        train_inout_seq = self.create_inout_sequences(train_data[0], train_window)
+
+        # train_data = train_data.reshape(frame_samples-num_test_data, self._num_features, self._num_dimensions)
+
+        return train_inout_seq, train_data, test_data
+
+
+    def get_LSTM_data_motion(self, asf_path, amc_path, frame_samples, num_test_data, train_window):
+        visual_input, selected_joint_names = self.compile_data(asf_path=asf_path, amc_path=amc_path, frame_samples=frame_samples)
+
+        visual_input = visual_input.permute(1,0,2)
+        visual_input = self.std_scale_data(visual_input, 1)
+        visual_input = self.get_motion_data(visual_input, frame_samples)
+        visual_input = visual_input.reshape(1, frame_samples-1, self._num_dimensions*self._num_features)
 
         train_data = visual_input[:,:-num_test_data,:]
         test_data = visual_input[:,-num_test_data:,:]

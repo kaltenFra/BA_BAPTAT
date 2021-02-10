@@ -21,7 +21,7 @@ class BAPTAT_evaluator():
             with torch.no_grad():
                 obs_t = self.preprocessor.convert_data_AT_to_LSTM(observations[i+1])
                 pred_t = final_predictions[i]
-                loss = loss_function(pred_t, obs_t)
+                loss = loss_function(pred_t, obs_t[0])
                 prediction_error.append(loss)
 
         fig = plt.figure()
