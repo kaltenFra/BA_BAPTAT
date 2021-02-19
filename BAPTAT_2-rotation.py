@@ -26,11 +26,11 @@ autograd.set_detect_anomaly(True)
 
 
 ## Define data parameters
-num_frames = 400
+num_frames = 50
 num_input_features = 15
 num_input_dimensions = 3
 preprocessor = Preprocessor(num_input_features, num_input_dimensions)
-evaluator = BAPTAT_evaluator(num_frames, preprocessor)
+evaluator = BAPTAT_evaluator(num_frames, num_input_features, preprocessor)
 data_at_unlike_train = False ## Note: sample needs to be changed in the future
 
 # data paths 
@@ -39,7 +39,7 @@ data_amc_path = 'Data_Compiler/S35T07.amc'
 
 
 ## Define model parameters 
-model_path = 'CoreLSTM/models/LSTM_23.pt'
+model_path = 'CoreLSTM/models/LSTM_24_motion.pt'
 
 
 ## Define tuning parameters 
@@ -201,10 +201,11 @@ while obs_count < num_frames:
             print(upd_R)
 
             # Compare binding matrix to ideal matrix
-            ang_loss = at_loss_function(ideal_angle, torch.stack(upd_R))
+            ang_loss = 2 - (torch.cos(torch.deg2rad(torch.stack(upd_R))) + 1)
+            # ang_loss = at_loss_function(ideal_angle, torch.stack(upd_R))
             # mat_loss = at_loss_function(ideal_binding, B_upd[0])
-            ra_losses.append(ang_loss)
             print(f'loss of rotation angles: {ang_loss}')
+            ra_losses.append(torch.mean(ang_loss))
 
             rotmat = perspective_taker.compute_rotation_matrix_(upd_R[0], upd_R[1], upd_R[2])
             mat_loss = at_loss_function(ideal_rotation, rotmat)

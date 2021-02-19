@@ -16,7 +16,8 @@ class LSTM_Tester():
 
     def predict(self, num_predictions, model, test_input, test_target, train_window): 
         prediction_error = []
-
+        state = model.init_hidden(train_window)
+        state_scale = 0.9
         for i in range(num_predictions):
             seq = test_input[-train_window:]
 
@@ -25,8 +26,9 @@ class LSTM_Tester():
                     loss = self._loss_function(test_input[-1], test_target[0,i]).item()
                     prediction_error.append(loss)
 
-                new_prediction, state = model(seq)
-                test_input = torch.cat((test_input, new_prediction.reshape(1,45)), 0)
+                state = (state[0] * state_scale, state[1] * state_scale)
+                new_prediction, state = model(seq, state)
+                test_input = torch.cat((test_input, new_prediction[-1].reshape(1,45)), 0)
 
         predictions = test_input[-num_predictions:].reshape(num_predictions, 15, 3)
 
@@ -59,7 +61,7 @@ class LSTM_Tester():
 def main():
     # LSTM parameters
     frame_samples = 1000
-    train_window = 10
+    train_window = 50
     testing_size = 100
     num_features = 15
     num_dimensions = 3
@@ -72,7 +74,7 @@ def main():
     # Init tools
     data_asf_path = 'Data_Compiler/S35T07.asf'
     data_amc_path = 'Data_Compiler/S35T07.amc'
-    model_save_path = 'CoreLSTM/models/LSTM_4.pt'
+    model_save_path = 'CoreLSTM/models/LSTM_26_cell.pt'
 
     # Preprocess data
     io_seq, dt_train, dt_test = prepro.get_LSTM_data(data_asf_path, 

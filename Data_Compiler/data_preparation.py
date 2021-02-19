@@ -27,6 +27,8 @@ class Preprocessor():
                                   [0, 0, scale_factor]])
         scaled = torch.matmul(input_data, scale_mat)
         print(f'Scaled data by factor {scale_factor}')
+        print(f'New minimum: {torch.min(scaled)}')
+        print(f'New maximum: {torch.max(scaled)}')
         return scaled
 
 
@@ -52,7 +54,7 @@ class Preprocessor():
         visual_input, selected_joint_names = self.compile_data(asf_path=asf_path, amc_path=amc_path, frame_samples=frame_samples)
 
         visual_input = visual_input.permute(1,0,2)
-        visual_input = self.std_scale_data(visual_input, 1)
+        visual_input = self.std_scale_data(visual_input, 15)
         visual_input = visual_input.reshape(1, frame_samples, self._num_dimensions*self._num_features)
 
         train_data = visual_input[:,:-num_test_data,:]
@@ -86,7 +88,7 @@ class Preprocessor():
     def get_AT_data(self, asf_path, amc_path, frame_samples):
         visual_input, selected_joint_names = self.compile_data(asf_path=asf_path, amc_path=amc_path, frame_samples=frame_samples)
         visual_input = visual_input.permute(1,0,2)
-        visual_input = self.std_scale_data(visual_input, 1)
+        visual_input = self.std_scale_data(visual_input, 15)
 
 
         return visual_input, selected_joint_names

@@ -9,6 +9,7 @@ class BinderExMat():
     def __init__(self, num_features, gradient_init):
         self.gradient_init = gradient_init
         self.num_features = num_features
+        self.bin_momentum = [None, None]
 
 
     def init_binding_matrix_(self):
@@ -17,9 +18,16 @@ class BinderExMat():
         return binding_matrix
 
 
-    def init_binding_entries_(self):
+    def init_binding_entries_rand_(self):
         binding_entries = torch.rand((self.num_features, self.num_features), 
                                       requires_grad=False)
+        return binding_entries
+    
+    def init_binding_entries_det_(self):
+        init_val = 1.0/self.num_features
+        binding_entries = torch.Tensor(self.num_features, self.num_features)
+        binding_entries.requires_grad_ = False
+        binding_entries = binding_entries.fill_(init_val)
         return binding_entries
     
 
@@ -37,16 +45,32 @@ class BinderExMat():
         return binding_matrix
 
     
-    def update_binding_entries_(self, entires, gradient, learning_rate):
+    def update_binding_entries_(self, entries, gradient, learning_rate, momentum):
         upd_entries = []
+        mom = momentum*self.calc_momentum()
         for j in range(self.num_features):
             row = []
             for k in range(self.num_features):
-                entry = entires[j][k] - learning_rate * gradient[j][k]
+                # entry = entries[j][k] - learning_rate * gradient[j][k] 
+                entry = entries[j][k] - learning_rate * gradient[j][k] + mom[j][k]
                 row.append(entry)
             upd_entries.append(row)
+        self.update_momentum(entries)
         return upd_entries
         
+    def update_momentum(self, entries): 
+        if self.bin_momentum[0] == None: 
+            self.bin_momentum[0] = torch.Tensor(entries.copy())
+            self.bin_momentum[1] = torch.Tensor(entries.copy())
+        else: 
+            self.bin_momentum[1] = self.bin_momentum[0]
+            self.bin_momentum[0] = torch.Tensor(entries.copy())
+    
+    def calc_momentum(self):
+        if self.bin_momentum[0] == None: 
+            return torch.zeros(self.num_features, self.num_features)
+        else:
+            return self.bin_momentum[1] - self.bin_momentum[0]
 
 
     def bind(self, input, bind_matrix):

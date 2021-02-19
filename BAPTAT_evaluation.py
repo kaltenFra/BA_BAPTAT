@@ -5,10 +5,12 @@ import numpy as np
 class BAPTAT_evaluator():
 
     def __init__(self, 
-                 num_frames, 
+                 num_frames,
+                 num_features, 
                  preprocessor):
         
         self.num_frames = num_frames
+        self.num_features = num_features
         self.preprocessor = preprocessor
 
     def prediction_errors(self, 
@@ -36,14 +38,14 @@ class BAPTAT_evaluator():
         return prediction_error
 
 
-    def plot_at_losses(self, losses): 
+    def plot_at_losses(self, losses, title): 
         fig = plt.figure()
         axes = fig.add_axes([0.1, 0.1, 0.8, 0.8]) 
         axes.plot(losses, 'r')
         axes.grid(True)
         axes.set_xlabel('active tuning runs')
         axes.set_ylabel('loss')
-        axes.set_title('History of losses during active tuning')
+        axes.set_title(title)
         plt.show()
 
 
@@ -96,6 +98,25 @@ class BAPTAT_evaluator():
 
         plt.title('Binding matrix showing contribution of observed feature to input feature', size = 12, fontweight='bold')
         plt.show()
+
+    
+    def FBE(self, bm, ideal): 
+        fbe = 0
+        c = 0
+        for j in range(self.num_features):
+            c += bm[j,j]
+            a = torch.square(bm[j,j]-ideal[j,j])
+            # a = torch.pow(bm[j,j]-ideal[j,j], 2)
+            b = 0
+            for i in range(self.num_features):
+                # Franzi version
+                if i != j: 
+                    b += torch.square(bm[j,i])
+                # Milad version
+                # if i != j: 
+                #     b += torch.square(bm[i,i])
+            fbe += torch.sqrt(a+b)
+        return fbe
 
 
 

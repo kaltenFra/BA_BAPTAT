@@ -23,13 +23,15 @@ from BAPTAT_evaluation import BAPTAT_evaluator
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 autograd.set_detect_anomaly(True)
 
+torch.set_printoptions(precision=8)
+
 
 ## Define data parameters
-num_frames = 300
+num_frames = 100
 num_input_features = 15
 num_input_dimensions = 3
 preprocessor = Preprocessor(num_input_features, num_input_dimensions)
-evaluator = BAPTAT_evaluator(num_frames, preprocessor)
+evaluator = BAPTAT_evaluator(num_frames, num_input_features, preprocessor)
 data_at_unlike_train = False ## Note: sample needs to be changed in the future
 
 # data paths 
@@ -38,17 +40,22 @@ data_amc_path = 'Data_Compiler/S35T07.amc'
 
 
 ## Define model parameters 
-model_path = 'CoreLSTM/models/LSTM_23.pt'
+model_path = 'CoreLSTM/models/LSTM_46_cell.pt'
 
 
 ## Define tuning parameters 
 tuning_length = 20      # length of tuning horizon 
 tuning_cycles = 1       # number of tuning cycles in each iteration 
-at_loss_function = nn.MSELoss()
-# mse = nn.MSELoss()
+# at_loss_function = nn.MSELoss()
+mse = nn.MSELoss()
+l1Loss = nn.L1Loss()
+l2Loss = lambda x,y: mse(x, y) * (num_input_dimensions * num_input_features)
+## eukledean might be the L" Loss??
 # at_loss_function = lambda x,y: mse(x, y) * (num_input_dimensions * num_input_features)
-at_learning_rate = 0.1
-at_learning_rate_state = 0.001
+at_loss_function = nn.L1Loss()
+at_learning_rate = 1
+at_learning_rate_state = 0.0
+bm_momentum = 0.0
 
 
 ## Define tuning variables
@@ -73,6 +80,7 @@ Bs = []
 B_grads = [None] * (tuning_length+1)
 B_upd = [None] * (tuning_length+1)
 bm_losses = []
+bm_dets = []
 
 
 
@@ -99,7 +107,8 @@ core_model.eval()
 #     Bs.append(binmat)
 
 # Version 2: Init binding entries 
-be = binder.init_binding_entries_()
+# be = binder.init_binding_entries_rand_()
+be = binder.init_binding_entries_det_()
 print(be)
 
 for i in range(tuning_length+1):
@@ -117,8 +126,15 @@ print(f'BMs different in list: {Bs[0] is not Bs[1]}')
 
 
 ## Core state
-at_h = torch.zeros(core_model.hidden_num, 1, core_model.hidden_size).requires_grad_()
-at_c = torch.zeros(core_model.hidden_num, 1, core_model.hidden_size).requires_grad_()
+# Layer
+# at_h = torch.zeros(core_model.hidden_num, 1, core_model.hidden_size).requires_grad_()
+# at_c = torch.zeros(core_model.hidden_num, 1, core_model.hidden_size).requires_grad_()
+
+# Cell
+at_h = torch.zeros(1, core_model.hidden_size).requires_grad_()
+at_c = torch.zeros(1, core_model.hidden_size).requires_grad_()
+
+state_scaler = 0.95
 init_state = (at_h, at_c)
 at_states.append(init_state)
 state = (init_state[0], init_state[1])
@@ -140,6 +156,7 @@ for i in range(tuning_length):
     x = preprocessor.convert_data_AT_to_LSTM(x_B)
 
     # with torch.no_grad():
+    state = (state[0] * state_scaler, state[1] * state_scaler)
     new_prediction, state = core_model(x, state)  
     at_states.append(state)
     at_predictions = torch.cat((at_predictions, new_prediction.reshape(1,45)), 0)
@@ -164,6 +181,7 @@ while obs_count < num_frames:
 
     ## Generate current prediction 
     with torch.no_grad():
+        state = (state[0] * state_scaler, state[1] * state_scaler)
         new_prediction, state_new = core_model(x, at_states[-1])
 
     ## For #tuning_cycles 
@@ -174,7 +192,21 @@ while obs_count < num_frames:
         p = at_predictions[-1]
 
         # Calculate error 
-        loss = at_loss_function(p, x[0]) 
+        lam = 10
+        # loss = at_loss_function(p, x[0]) + l1Loss(p,x[0]) + lam / torch.norm(torch.Tensor(Bs[0].copy()))
+        # loss = at_loss_function(p, x[0]) + mse(p, x[0])
+        # loss = l1Loss(p,x[0]) + l2Loss(p,x[0])
+        loss_scale = torch.square(torch.mean(torch.norm(torch.tensor(Bs[-1]), dim=1, keepdim=True)) -1.) ##COPY?????
+        # -> länge der Vektoren 
+        print(f'loss scale: {loss_scale}')
+        loss_scale_factor = 2
+        l1scale = loss_scale_factor * loss_scale
+        l2scale = loss_scale_factor / loss_scale
+        # loss = l1Loss(p,x[0]) + l2scale * l2Loss(p,x[0])
+        # loss = l1scale * mse(p,x[0]) + l2scale * l2Loss(p,x[0])
+        # loss = l2Loss(p,x[0]) + mse(p,x[0])
+        # loss = l2Loss(p,x[0]) + loss_scale * mse(p,x[0])
+        loss = loss_scale_factor * loss_scale * l2Loss(p,x[0]) + mse(p,x[0])
         at_losses.append(loss)
         print(f'frame: {obs_count} cycle: {cycle} loss: {loss}')
 
@@ -202,23 +234,29 @@ while obs_count < num_frames:
                 B_grads[i] = torch.stack(grad)
 
             # print(B_grads[tuning_length])
-
             
             # Calculate overall gradients 
             ### version 1
             # grad_B = B_grads[0]
             ### version 2 / 3
             # grad_B = torch.mean(torch.stack(B_grads))
+            # train single entries
+            grad_B = torch.mean(torch.stack(B_grads), 0)
+
+            # print(grad_B.shape)
+
             ### version 4
-            bias = 8
-            # # bias > 1 => favor recent
-            # # bias < 1 => favor earlier
-            weighted_grads_B = [None] * (tuning_length+1)
-            for i in range(tuning_length+1):
-                weighted_grads_B[i] = np.power(bias, i) * B_grads[i]
-            grad_B = torch.mean(torch.stack(weighted_grads_B), dim=1)
+            # bias = 8
+            # # # # bias > 1 => favor recent
+            # # # # bias < 1 => favor earlier
+            # weighted_grads_B = [None] * (tuning_length+1)
+            # for i in range(tuning_length+1):
+            #     weighted_grads_B[i] = np.power(bias, i) * B_grads[i]
+            # grad_B = torch.mean(torch.stack(weighted_grads_B), dim=1)
             
             # print(f'grad_B: {grad_B}')
+            # print(f'grad_B: {torch.norm(grad_B, 1)}')
+            
 
             # Update parameters in time step t-H with saved gradients 
             # Version 1
@@ -227,13 +265,21 @@ while obs_count < num_frames:
             #     B_upd[i] = binder.update_binding_matrix_(Bs[i], grad_B, at_learning_rate)
  
             # Version 2
-            upd_B = binder.update_binding_entries_(Bs[0], grad_B, at_learning_rate)
+            upd_B = binder.update_binding_entries_(Bs[0], grad_B, at_learning_rate, bm_momentum)
 
             # Compare binding matrix to ideal matrix
-            mat_loss = at_loss_function(ideal_binding, binder.compute_binding_matrix(upd_B, bindSM)) 
+            c_bm = binder.compute_binding_matrix(upd_B, bindSM)
+            mat_loss = evaluator.FBE(c_bm, ideal_binding)
+            # mat_loss = at_loss_function(ideal_binding, binder.compute_binding_matrix(upd_B, bindSM)) 
             # mat_loss = at_loss_function(ideal_binding, B_upd[0])
             bm_losses.append(mat_loss)
-            print(f'loss of binding matrix: {mat_loss}')
+            print(f'loss of binding matrix (FBE): {mat_loss}')
+
+            # Compute determinante of binding matrix
+            det = torch.det(c_bm)
+            bm_dets.append(det)
+            print(f'determinante of binding matrix: {det}')
+            
             
             # Zero out gradients for all parameters in all time steps of tuning horizon
             for i in range(tuning_length+1):
@@ -247,9 +293,8 @@ while obs_count < num_frames:
             # for i in range(tuning_length+1):
             #     Bs[i].data = upd_B.clone().data
             #     # Bs[i].data = B_upd[i].clone().data
-
             # Version 2
-            for i in range(tuning_length):
+            for i in range(tuning_length+1):
                 entries = []
                 for j in range(num_input_features):
                     row = []
@@ -259,7 +304,6 @@ while obs_count < num_frames:
                         row.append(entry)
                     entries.append(row)
                 Bs[i] = entries
-
             
             # print(Bs[0])
 
@@ -297,6 +341,7 @@ while obs_count < num_frames:
 
             # print(f'x_B :{x_B}')
 
+            state = (state[0] * state_scaler, state[1] * state_scaler)
             at_predictions[i], state = core_model(x, state)
             # for last tuning cycle update initial state to track gradients 
             if cycle==(tuning_cycles-1) and i==0: 
@@ -319,7 +364,9 @@ while obs_count < num_frames:
     # END tuning cycle        
 
     ## Generate updated prediction 
-    new_prediction, state = core_model(x, at_states[-1])
+    state = at_states[-1]
+    state = (state[0] * state_scaler, state[1] * state_scaler)
+    new_prediction, state = core_model(x, state)
 
     ## Reorganize storage variables
     # states
@@ -344,6 +391,8 @@ for i in range(tuning_length):
 # get final binding matrix
 final_binding_matrix = binder.compute_binding_matrix(Bs[-1], bindSM)
 print(f'final binding matrix: {final_binding_matrix}')
+final_binding_entires = torch.tensor(Bs[-1])
+print(f'final binding entires: {final_binding_entires}')
 
 
 ############################################################################
@@ -352,9 +401,11 @@ pred_errors = evaluator.prediction_errors(observations,
                                           at_final_predictions, 
                                           at_loss_function)
 
-evaluator.plot_at_losses(at_losses)
-evaluator.plot_at_losses(bm_losses)
+evaluator.plot_at_losses(at_losses, 'History of overall losses during active tuning')
+evaluator.plot_at_losses(bm_losses, 'History of binding matrix loss (FBE)')
+evaluator.plot_at_losses(bm_dets, 'History of binding matrix determinante')
 
 evaluator.plot_binding_matrix(final_binding_matrix, feature_names)
+evaluator.plot_binding_matrix(final_binding_entires, feature_names)
 
 # evaluator.help_visualize_devel(observations, at_final_predictions)

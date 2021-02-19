@@ -1,4 +1,5 @@
 import torch 
+import numpy as np
 from torch.autograd import Variable
 
 class Perspective_Taker():
@@ -79,24 +80,30 @@ class Perspective_Taker():
 
     
     def compute_rotation_matrix_(self, alpha, beta, gamma):
+        alpha_rad = torch.deg2rad(alpha)
+        beta_rad = torch.deg2rad(beta)
+        gamma_rad = torch.deg2rad(gamma)
         # initialize dimensional rotation matrices 
         R_x_1 = torch.Tensor([[1.0,0.0,0.0]])
-        R_x_2 = torch.stack([torch.zeros(1), torch.cos(alpha), - torch.sin(alpha)], dim=1)
-        R_x_3 = torch.stack([torch.zeros(1), torch.sin(alpha), torch.cos(alpha)], dim=1)
+        R_x_2 = torch.stack([torch.zeros(1), torch.cos(alpha_rad), - torch.sin(alpha_rad)], dim=1)
+        R_x_3 = torch.stack([torch.zeros(1), torch.sin(alpha_rad), torch.cos(alpha_rad)], dim=1)
         R_x = torch.stack([R_x_1, R_x_2, R_x_3], dim=1)
+        print(R_x)
         
-        R_y_1 = torch.stack([torch.cos(beta), torch.zeros(1), torch.sin(beta)], dim=1)
+        R_y_1 = torch.stack([torch.cos(beta_rad), torch.zeros(1), torch.sin(beta_rad)], dim=1)
         R_y_2 = torch.Tensor([[0.0,1.0,0.0]])
-        R_y_3 = torch.stack([- torch.sin(beta), torch.zeros(1), torch.cos(beta)], dim=1)
+        R_y_3 = torch.stack([- torch.sin(beta_rad), torch.zeros(1), torch.cos(beta_rad)], dim=1)
         R_y = torch.stack([R_y_1, R_y_2, R_y_3], dim=1)
+        print(R_y)
 
-        R_z_1 = torch.stack([torch.cos(gamma), - torch.sin(gamma), torch.zeros(1)], dim=1)
-        R_z_2 = torch.stack([torch.sin(gamma), torch.cos(gamma), torch.zeros(1)], dim=1)
+        R_z_1 = torch.stack([torch.cos(gamma_rad), - torch.sin(gamma_rad), torch.zeros(1)], dim=1)
+        R_z_2 = torch.stack([torch.sin(gamma_rad), torch.cos(gamma_rad), torch.zeros(1)], dim=1)
         R_z_3 = torch.Tensor([[0.0,0.0,1.0]])
         R_z = torch.stack([R_z_1, R_z_2, R_z_3], dim=1)
+        print(R_z)
 
         # initialize rotation matrix
-        rotation_matrix = torch.matmul(R_z, torch.matmul(R_y, R_x))        
+        rotation_matrix = torch.matmul(R_z, torch.matmul(R_y, R_x))    
         return rotation_matrix
 
 
@@ -161,3 +168,14 @@ class Perspective_Taker():
 
     def translate(self,input, translation_bias): 
         return input + translation_bias
+
+
+def main(): 
+    perspective_taker = Perspective_Taker(alpha_init=0.0, beta_init=0.0, gamma_init=0.0, 
+                    rotation_gradient_init=True, translation_gradient_init=True)
+    
+    rm = perspective_taker.compute_rotation_matrix_(torch.tensor([0.]), torch.tensor([90.]), torch.tensor([180.]))
+    print(rm)
+
+if __name__ == "__main__":
+    main()
