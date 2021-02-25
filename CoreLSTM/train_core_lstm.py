@@ -167,9 +167,6 @@ class LSTM_Trainer():
             # print(ep_loss)
             # print(foo)
 
-            
-
-
 
             #########################################################################################
             # Update State nach jedem Batch mit End-Prediction, inkl. Teacher Forcing 
@@ -236,6 +233,68 @@ class LSTM_Trainer():
         print('Model was saved in: ' + path)
 
 
+
+    
+
+def main():
+    # LSTM parameters
+    frame_samples = 1000
+    train_window = 10
+    testing_size = 100
+    num_features = 15
+    num_dimensions = 3
+
+    # Training parameters
+    epochs = 10000
+    mse=nn.MSELoss()
+    # loss_function=nn.MSELoss()
+    # loss_function= lambda x, y: mse(x, y) * (num_features * num_dimensions)
+    loss_function=nn.L1Loss()
+    learning_rate=0.005
+    momentum=0.0
+    l2_penality=0.1
+
+    # Init tools
+    prepro = Preprocessor(num_features, num_dimensions)
+    trainer = LSTM_Trainer(
+        loss_function, 
+        learning_rate, 
+        momentum, 
+        l2_penality, 
+        train_window
+    )
+    tester = LSTM_Tester(loss_function)
+    tester_1 = LSTM_Tester(mse)
+
+    # Init tools
+    data_asf_path = 'Data_Compiler/S35T07.asf'
+    data_amc_path = 'Data_Compiler/S35T07.amc'
+    model_save_path = 'CoreLSTM/models/LSTM_53_cell.pt'
+
+    # Preprocess data
+    io_seq, dt_train, dt_test = prepro.get_LSTM_data(
+        data_asf_path, 
+        data_amc_path, 
+        frame_samples, 
+        testing_size, 
+        train_window
+    )
+
+    # Train LSTM
+    losses = trainer.train(epochs, io_seq, model_save_path)
+
+    test_input = dt_train[0,-train_window:]
+
+    # Test LSTM
+    tester.test(testing_size, model_save_path, test_input, dt_test, train_window)
+    tester_1.test(testing_size, model_save_path, test_input, dt_test, train_window)
+    
+
+
+if __name__ == "__main__":
+    main()
+
+
 # class LSTMLayer_Trainer():
 #     ## General parameters 
 #     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -293,56 +352,3 @@ class LSTM_Trainer():
 #     def save_model(self, path):
 #         torch.save(self._model.state_dict(), path)
 #         print('Model was saved in: ' + path)
-
-    
-
-def main():
-    # LSTM parameters
-    frame_samples = 1000
-    train_window = 10
-    testing_size = 100
-    num_features = 15
-    num_dimensions = 3
-
-    # Training parameters
-    epochs = 10000
-    mse=nn.MSELoss()
-    # loss_function=nn.MSELoss()
-    # loss_function= lambda x, y: mse(x, y) * (num_features * num_dimensions)
-    loss_function=nn.L1Loss()
-    learning_rate=0.005
-    momentum=0.0
-    l2_penality=0.1
-
-    # Init tools
-    prepro = Preprocessor(num_features, num_dimensions)
-    trainer = LSTM_Trainer(loss_function, learning_rate, momentum, l2_penality, train_window)
-    tester = LSTM_Tester(loss_function)
-    tester_1 = LSTM_Tester(mse)
-
-    # Init tools
-    data_asf_path = 'Data_Compiler/S35T07.asf'
-    data_amc_path = 'Data_Compiler/S35T07.amc'
-    model_save_path = 'CoreLSTM/models/LSTM_53_cell.pt'
-
-    # Preprocess data
-    io_seq, dt_train, dt_test = prepro.get_LSTM_data(data_asf_path, 
-                                                    data_amc_path, 
-                                                    frame_samples, 
-                                                    testing_size, 
-                                                    train_window)
-
-    # Train LSTM
-    losses = trainer.train(epochs, io_seq, model_save_path)
-
-    test_input = dt_train[0,-train_window:]
-
-    # Test LSTM
-    tester.test(testing_size, model_save_path, test_input, dt_test, train_window)
-    tester_1.test(testing_size, model_save_path, test_input, dt_test, train_window)
-    
-
-
-if __name__ == "__main__":
-    main()
-

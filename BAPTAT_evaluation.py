@@ -73,7 +73,7 @@ class BAPTAT_evaluator():
         plt.show()
 
     
-    def plot_binding_matrix(self, binding_matrix, feature_names): 
+    def plot_binding_matrix(self, binding_matrix, feature_names, title): 
         bm = binding_matrix.detach().numpy()
         fig = plt.figure(figsize=(20,20))
         ax = fig.add_subplot(111)
@@ -96,7 +96,7 @@ class BAPTAT_evaluator():
         ax.set_yticklabels(feature_names)
         ax.set_ylabel('input feature')
 
-        plt.title('Binding matrix showing contribution of observed feature to input feature', size = 12, fontweight='bold')
+        plt.title(title, size = 12, fontweight='bold')
         plt.show()
 
     
@@ -106,15 +106,10 @@ class BAPTAT_evaluator():
         for j in range(self.num_features):
             c += bm[j,j]
             a = torch.square(bm[j,j]-ideal[j,j])
-            # a = torch.pow(bm[j,j]-ideal[j,j], 2)
             b = 0
             for i in range(self.num_features):
-                # Franzi version
                 if i != j: 
                     b += torch.square(bm[j,i])
-                # Milad version
-                # if i != j: 
-                #     b += torch.square(bm[i,i])
             fbe += torch.sqrt(a+b)
         return fbe
 

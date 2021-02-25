@@ -16,13 +16,7 @@ class CORE_NET(nn.Module):
         if state==None:
             h0 = torch.zeros(input_seq.size(0), self.hidden_size).requires_grad_()
             c0 = torch.zeros(input_seq.size(0), self.hidden_size).requires_grad_()
-        #     state = (h0.detach(), c0.detach())
-        # seq_len = len(input_seq)
-        # input_seq = input_seq.view(seq_len ,self.input_size, -1)
-        # print(input_seq.shape)
-        # for i in range (seq_len):
-        #     lstm_out, state = self.lstm(input_seq[i], state)
-
+            
         hn, cn = self.lstm(input_seq, state)
         prediction = self.linear(hn)
         return prediction, (hn,cn)
@@ -31,6 +25,23 @@ class CORE_NET(nn.Module):
     def init_hidden(self, batch_size):
         return (torch.zeros(batch_size, self.hidden_size),
                 torch.zeros(batch_size, self.hidden_size))
+
+
+class PSEUDO_CORE(): 
+    def __init__(self, input_size=45):
+        self.input_size = input_size
+    
+    def forward(self, input, binding_matrix, observation, div_obs):
+        with torch.no_grad():
+            div = observation - input
+        o_t = input+div
+        o_t1 = o_t+div_obs
+        # print(o_t)
+        # print(div_obs)
+        print(div)
+        # print(o_t1)
+        # print(foo)
+        return o_t1
 
 # class CORE_NET_Layer(nn.Module):
 #     def __init__(self, input_size=45, hidden_layer_size=360, num_layers=2, output_size=45):
