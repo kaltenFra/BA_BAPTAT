@@ -106,11 +106,152 @@ class Perspective_Taker():
             self.bin_momentum_rotation[1] = self.bin_momentum_rotation[0]
             self.bin_momentum_rotation[0] = torch.Tensor(entries.clone().detach())
     
-    def calc_momentum_translation(self):
+    def calc_momentum_roation(self):
         if self.bin_momentum_rotation[0] == None: 
             return torch.zeros(self.num_features, self.num_features)
         else:
             return self.bin_momentum_rotation[1] - self.bin_momentum_rotation[0]
+
+
+
+    #################################################################################
+    #################### QUATERNION ROTATION
+    #################################################################################
+
+    def init_quaternion(self): 
+        # q = torch.rand(1,4)
+        q = torch.ones(1,4)
+        q[0,0] = 0.0
+        return q
+
+
+    def norm_quaternion(self, q): 
+        return torch.sqrt(torch.sum(torch.mul(q,q)))
+
+
+    def update_quaternion(self, q, grad, learning_rate):
+        upd_q = q - learning_rate * grad
+        upd_q = upd_q/self.norm_quaternion(upd_q)
+        return upd_q
+    
+    def update_quaternion(self, q, grad, learning_rate, momentum):
+        mom = momentum*self.calc_momentum_qroation()
+        upd_q = q - learning_rate * grad + mom
+        # upd_q = upd_q/self.norm_quaternion(upd_q)
+        self.update_momentum_qrotation(q)
+        return upd_q
+
+    def update_momentum_qrotation(self, entries): 
+        if self.bin_momentum_rotation[0] == None: 
+            self.bin_momentum_rotation[0] = torch.Tensor(entries.clone().detach())
+            self.bin_momentum_rotation[1] = torch.Tensor(entries.clone().detach())
+        else: 
+            self.bin_momentum_rotation[1] = self.bin_momentum_rotation[0]
+            self.bin_momentum_rotation[0] = torch.Tensor(entries.clone().detach())
+    
+    def calc_momentum_qroation(self):
+        if self.bin_momentum_rotation[0] == None: 
+            return torch.zeros(1, self.dimensions+1)
+        else:
+            return self.bin_momentum_rotation[1] - self.bin_momentum_rotation[0]
+
+    # def quaternion2euler(self, q): 
+    def qeuler(q, order, epsilon=0):
+        """
+        Convert quaternion(s) q to Euler angles.
+        Expects a tensor of shape (*, 4), where * denotes any number of dimensions.
+        Returns a tensor of shape (*, 3).
+        """
+        assert q.shape[-1] == 4
+        
+        original_shape = list(q.shape)
+        original_shape[-1] = 3
+        q = q.view(-1, 4)
+        
+        q0 = q[:, 0]
+        q1 = q[:, 1]
+        q2 = q[:, 2]
+        q3 = q[:, 3]
+        
+        if order == 'xyz':
+            x = torch.atan2(2 * (q0 * q1 - q2 * q3), 1 - 2*(q1 * q1 + q2 * q2))
+            y = torch.asin(torch.clamp(2 * (q1 * q3 + q0 * q2), -1+epsilon, 1-epsilon))
+            z = torch.atan2(2 * (q0 * q3 - q1 * q2), 1 - 2*(q2 * q2 + q3 * q3))
+        elif order == 'yzx':
+            x = torch.atan2(2 * (q0 * q1 - q2 * q3), 1 - 2*(q1 * q1 + q3 * q3))
+            y = torch.atan2(2 * (q0 * q2 - q1 * q3), 1 - 2*(q2 * q2 + q3 * q3))
+            z = torch.asin(torch.clamp(2 * (q1 * q2 + q0 * q3), -1+epsilon, 1-epsilon))
+        elif order == 'zxy':
+            x = torch.asin(torch.clamp(2 * (q0 * q1 + q2 * q3), -1+epsilon, 1-epsilon))
+            y = torch.atan2(2 * (q0 * q2 - q1 * q3), 1 - 2*(q1 * q1 + q2 * q2))
+            z = torch.atan2(2 * (q0 * q3 - q1 * q2), 1 - 2*(q1 * q1 + q3 * q3))
+        elif order == 'xzy':
+            x = torch.atan2(2 * (q0 * q1 + q2 * q3), 1 - 2*(q1 * q1 + q3 * q3))
+            y = torch.atan2(2 * (q0 * q2 + q1 * q3), 1 - 2*(q2 * q2 + q3 * q3))
+            z = torch.asin(torch.clamp(2 * (q0 * q3 - q1 * q2), -1+epsilon, 1-epsilon))
+        elif order == 'yxz':
+            x = torch.asin(torch.clamp(2 * (q0 * q1 - q2 * q3), -1+epsilon, 1-epsilon))
+            y = torch.atan2(2 * (q1 * q3 + q0 * q2), 1 - 2*(q1 * q1 + q2 * q2))
+            z = torch.atan2(2 * (q1 * q2 + q0 * q3), 1 - 2*(q1 * q1 + q3 * q3))
+        elif order == 'zyx':
+            x = torch.atan2(2 * (q0 * q1 + q2 * q3), 1 - 2*(q1 * q1 + q2 * q2))
+            y = torch.asin(torch.clamp(2 * (q0 * q2 - q1 * q3), -1+epsilon, 1-epsilon))
+            z = torch.atan2(2 * (q0 * q3 + q1 * q2), 1 - 2*(q2 * q2 + q3 * q3))
+        else:
+            raise
+
+        return torch.stack((x, y, z), dim=1).view(original_shape)
+
+
+    def quaternion2rotmat(self, q):
+        q = q[0]
+        # get single quaternion entries 
+        w = q[0]
+        x = q[1]
+        y = q[2]
+        z = q[3]
+
+        # multiplied entries
+        xw = x*w
+        xx = x*x
+        xy = x*y
+        xz = x*z
+
+        yw = y*w
+        yy = y*y
+        yz = y*z
+
+        zw = z*w
+        zz = z*z
+
+        # compute roatation matrix
+        rotation_matrix = torch.Tensor(
+            [[1-2*(yy+zz),   2*(xy-zw),   2*(xz+yw)], 
+             [  2*(xy+zw), 1-2*(xx+zz),   2*(yz-xw)], 
+             [  2*(xz-yw),   2*(yz+xw), 1-2*(xx+yy)]]
+        )
+
+        return rotation_matrix
+
+
+    def qrotate(self, v, q):
+        """
+        Rotate vector(s) v about the rotation described by quaternion(s) q.
+        Expects a tensor of shape (*, 4) for q and a tensor of shape (*, 3) for v,
+        where * denotes any number of dimensions.
+        Returns a tensor of shape (*, 3).
+        """
+
+        q = torch.stack([q] * self.num_features)
+
+        original_shape = list(v.shape)
+        q = q.view(-1, 4)
+        v = v.view(-1, 3)
+
+        qvec = q[:, 1:]
+        uv = torch.cross(qvec, v, dim=1)
+        uuv = torch.cross(qvec, uv, dim=1)
+        return (v + 2 * (q[:, :1] * uv + uuv)).view(original_shape)
 
     #################################################################################
     #################### TRANSLATION
@@ -118,7 +259,8 @@ class Perspective_Taker():
 
 
     def init_translation_bias_(self):
-        tb = torch.rand(self.dimensions)
+        # tb = torch.rand(self.dimensions)
+        tb = torch.ones(self.dimensions)
         return tb
 
 
@@ -133,7 +275,7 @@ class Perspective_Taker():
         mom = momentum*self.calc_momentum_translation()
         
         upd_translation_bias = Variable(
-            translation_bias - learning_rate * gradient + momentum,
+            translation_bias - learning_rate * gradient + mom,
             requires_grad=self.translation_gradient_init)
         # print('Updated translation bias.')
 
@@ -156,7 +298,7 @@ class Perspective_Taker():
     
     def calc_momentum_translation(self):
         if self.bin_momentum_translation[0] == None: 
-            return torch.zeros(self.num_features, self.num_features)
+            return torch.zeros(self.dimensions)
         else:
             return self.bin_momentum_translation[1] - self.bin_momentum_translation[0]
 

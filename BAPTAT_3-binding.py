@@ -27,7 +27,7 @@ torch.set_printoptions(precision=8)
 
 
 ## Define data parameters
-num_frames = 50
+num_frames = 30
 num_input_features = 15
 num_input_dimensions = 3
 preprocessor = Preprocessor(num_input_features, num_input_dimensions)
@@ -50,12 +50,18 @@ tuning_cycles = 3       # number of tuning cycles in each iteration
 # possible loss functions
 mse = nn.MSELoss()
 l1Loss = nn.L1Loss()
+# smL1Loss = nn.SmoothL1Loss()
+smL1Loss = nn.SmoothL1Loss(reduction='sum')
+# smL1Loss = nn.SmoothL1Loss(beta=2)
+# smL1Loss = nn.SmoothL1Loss(beta=0.5)
+# smL1Loss = nn.SmoothL1Loss(reduction='sum', beta=0.5)
 l2Loss = lambda x,y: mse(x, y) * (num_input_dimensions * num_input_features)
 
 # define learning parameters 
 at_learning_rate = 1
 at_learning_rate_state = 0.0
 bm_momentum = 0.0
+at_loss_function = mse
 
 
 ## Define tuning variables
@@ -71,7 +77,6 @@ at_states = []
 # state_optimizer = torch.optim.Adam(init_state, at_learning_rate)
 
 # binding
-bindSM = nn.Softmax(dim=0)  # columnwise
 binder = BinderExMat(num_features=num_input_features, gradient_init=True)
 ideal_binding = torch.Tensor(np.identity(num_input_features))
 
@@ -98,22 +103,16 @@ core_model.eval()
 
 ## Binding matrices 
 # Init binding entries 
-be = binder.init_binding_entries_det_()
-print(be)
+bm = binder.init_binding_matrix_det_()
+# bm = binder.init_binding_matrix_rand_()
+print(bm)
 
 for i in range(tuning_length+1):
-    entries = []
-    for j in range(num_input_features):
-        row = []
-        for k in range(num_input_features):
-            entry = be[j][k].clone()
-            entry.requires_grad_()
-            row.append(entry)
-        entries.append(row)
-    Bs.append(entries)
+    matrix = bm.clone()
+    matrix.requires_grad_()
+    Bs.append(matrix)
     
 print(f'BMs different in list: {Bs[0] is not Bs[1]}')
-
 
 ## Core state
 # define scaler
@@ -136,7 +135,7 @@ for i in range(tuning_length):
     at_inputs = torch.cat((at_inputs, o.reshape(1, num_input_features, num_input_dimensions)), 0)
     obs_count += 1
 
-    bm = binder.compute_binding_matrix(Bs[i], bindSM)
+    bm = binder.scale_binding_matrix(Bs[i])
     x_B = binder.bind(o, bm)
     x = preprocessor.convert_data_AT_to_LSTM(x_B)
 
@@ -153,7 +152,7 @@ while obs_count < num_frames:
     o = observations[obs_count]
     obs_count += 1
 
-    bm = binder.compute_binding_matrix(Bs[-1], bindSM)
+    bm = binder.scale_binding_matrix(Bs[-1])
     x_B = binder.bind(o, bm)
     
     x = preprocessor.convert_data_AT_to_LSTM(x_B)
@@ -171,24 +170,25 @@ while obs_count < num_frames:
         p = at_predictions[-1]
 
         # Calculate error 
-        lam = 10
+        # lam = 10
         # loss = at_loss_function(p, x[0]) + l1Loss(p,x[0]) + lam / torch.norm(torch.Tensor(Bs[0].copy()))
         # loss = at_loss_function(p, x[0]) + mse(p, x[0])
         # loss = l1Loss(p,x[0]) + l2Loss(p,x[0])
         # loss_scale = torch.square(torch.mean(torch.norm(torch.tensor(Bs[-1]), dim=1, keepdim=True)) -1.) ##COPY?????
-        loss_scale = torch.square(torch.mean(torch.norm(bm.clone().detach(), dim=1, keepdim=True)) -1.) ##COPY?????
+        # loss_scale = torch.square(torch.mean(torch.norm(bm.clone().detach(), dim=1, keepdim=True)) -1.) ##COPY?????
         # -> länge der Vektoren 
-        print(f'loss scale: {loss_scale}')
-        loss_scale_factor = 0.9
-        l1scale = loss_scale_factor * loss_scale
-        l2scale = loss_scale_factor / loss_scale
+        # print(f'loss scale: {loss_scale}')
+        # loss_scale_factor = 0.9
+        # l1scale = loss_scale_factor * loss_scale
+        # l2scale = loss_scale_factor / loss_scale
         # loss = l1Loss(p,x[0]) + l2scale * l2Loss(p,x[0])
         # loss = l1scale * mse(p,x[0]) + l2scale * l2Loss(p,x[0])
         # loss = l2Loss(p,x[0]) + mse(p,x[0])
         # loss = l2Loss(p,x[0]) + loss_scale * mse(p,x[0])
-        loss = loss_scale_factor * loss_scale * l2Loss(p,x[0]) + mse(p,x[0])
+        # loss = loss_scale_factor * loss_scale * l2Loss(p,x[0]) + mse(p,x[0])
         # loss = loss_scale_factor * loss_scale * l2Loss(p,x[0]) 
         # loss = loss_scale_factor * loss_scale * mse(p,x[0])
+        loss = smL1Loss(p, x[0])
 
         at_losses.append(loss)
         print(f'frame: {obs_count} cycle: {cycle} loss: {loss}')
@@ -201,13 +201,7 @@ while obs_count < num_frames:
             
             # Calculate gradients with respect to the entires 
             for i in range(tuning_length+1):
-                grad = []
-                for j in range(num_input_features):
-                    row = []
-                    for k in range(num_input_features):
-                        row.append(Bs[i][j][k].grad)
-                    grad.append(torch.stack(row))
-                B_grads[i] = torch.stack(grad)
+                B_grads[i] = Bs[i].grad
 
             # print(B_grads[tuning_length])
             
@@ -230,10 +224,10 @@ while obs_count < num_frames:
             
 
             # Update parameters in time step t-H with saved gradients 
-            upd_B = binder.update_binding_entries_(Bs[0], grad_B, at_learning_rate, bm_momentum)
+            upd_B = binder.update_binding_matrix_(Bs[0], grad_B, at_learning_rate, bm_momentum)
 
             # Compare binding matrix to ideal matrix
-            c_bm = binder.compute_binding_matrix(upd_B, bindSM)
+            c_bm = binder.scale_binding_matrix(upd_B)
             mat_loss = evaluator.FBE(c_bm, ideal_binding)
             bm_losses.append(mat_loss)
             print(f'loss of binding matrix (FBE): {mat_loss}')
@@ -243,25 +237,15 @@ while obs_count < num_frames:
             bm_dets.append(det)
             print(f'determinante of binding matrix: {det}')
             
-            
             # Zero out gradients for all parameters in all time steps of tuning horizon
             for i in range(tuning_length+1):
-                for j in range(num_input_features):
-                    for k in range(num_input_features):
-                        Bs[i][j][k].requires_grad = False
-                        Bs[i][j][k].grad.data.zero_()
+                Bs[i].requires_grad = False
+                Bs[i].grad.data.zero_()
 
             # Update all parameters for all time steps 
             for i in range(tuning_length+1):
-                entries = []
-                for j in range(num_input_features):
-                    row = []
-                    for k in range(num_input_features):
-                        entry = upd_B[j][k].clone()
-                        entry.requires_grad_()
-                        row.append(entry)
-                    entries.append(row)
-                Bs[i] = entries
+                Bs[i].data = upd_B.clone().data
+                Bs[i].requires_grad = True
             
             # print(Bs[0])
 
@@ -289,7 +273,7 @@ while obs_count < num_frames:
         state = (init_state[0], init_state[1])
         for i in range(tuning_length):
 
-            bm = binder.compute_binding_matrix(Bs[i], bindSM)
+            bm = binder.scale_binding_matrix(Bs[i])
             x_B = binder.bind(o, bm)
             x = preprocessor.convert_data_AT_to_LSTM(x_B)
 
@@ -308,7 +292,7 @@ while obs_count < num_frames:
             at_states[i+1] = state 
 
         # Update current binding
-        bm = binder.compute_binding_matrix(Bs[-1], bindSM)
+        bm = binder.scale_binding_matrix(Bs[-1])
         x_B = binder.bind(o, bm)
         x = preprocessor.convert_data_AT_to_LSTM(x_B)
 
@@ -341,7 +325,7 @@ for i in range(tuning_length):
     at_final_predictions = torch.cat((at_final_predictions, at_predictions[1].reshape(1,45)), 0)
 
 # get final binding matrix
-final_binding_matrix = binder.compute_binding_matrix(Bs[-1], bindSM)
+final_binding_matrix = binder.scale_binding_matrix(Bs[-1])
 print(f'final binding matrix: {final_binding_matrix}')
 final_binding_entires = torch.tensor(Bs[-1])
 print(f'final binding entires: {final_binding_entires}')

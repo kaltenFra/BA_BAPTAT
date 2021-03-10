@@ -9,13 +9,20 @@ from Data_Compiler.amc_parser import test_all
 class Preprocessor():
     def __init__(self, num_features, num_dimensions):
         self._num_features = num_features
+        self.num_observations = num_features
+        self._num_dimensions = num_dimensions
+
+    
+    def __init__(self, num_features, num_observations, num_dimensions):
+        self._num_features = num_features
+        self.num_observations = num_observations
         self._num_dimensions = num_dimensions
 
 
     def compile_data(self, asf_path, amc_path, frame_samples):
-        visual_input, selected_joint_names = test_all(asf_path, amc_path, frame_samples, 30) 
+        visual_input, selected_joint_names = test_all(asf_path, amc_path, frame_samples, 30, self.num_observations) 
         visual_input = torch.from_numpy(visual_input).type(torch.float)
-
+        
         return visual_input, selected_joint_names
     
 

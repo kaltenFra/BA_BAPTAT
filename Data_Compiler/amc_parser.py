@@ -319,3 +319,88 @@ def test_all(user_asf_path, user_amc_path, user_input_frames, user_input_feature
   visual_input = visual_input[selector, :, :]
 
   return visual_input, selected_joint_names
+
+
+def test_all(user_asf_path, user_amc_path, user_input_frames, user_input_features, num_selected_features):
+  asf_path = user_asf_path
+  print('parsing %s' % asf_path)
+  joints = parse_asf(asf_path)
+  motions = parse_amc(user_amc_path)
+  joints['root'].set_motion(motions[200])
+  joints['root'].draw()
+  input_frames = user_input_frames
+  visual_input = np.zeros((user_input_features, input_frames, 3))
+  for i in range(input_frames):
+    perecived_joint = 0
+    joints['root'].set_motion(motions[i])
+    for joint in joints.values():
+      if perecived_joint == 0:
+        perecived_joint = perecived_joint + 1
+        continue
+      visual_input[perecived_joint-1, i, :] = joint.coordinate[:, 0]
+      perecived_joint = perecived_joint +1
+
+  print('Parsing is Done!')
+  print(visual_input.shape)
+
+  maxiX = []
+  miniX = []
+  maxiY = []
+  miniY = []
+  maxiZ = []
+  miniZ = []
+  for j7 in range(30):
+      maxisoluX = np.max(visual_input[j7, :, 0], axis=0)
+      maxisoluY = np.max(visual_input[j7, :, 1], axis=0)
+      maxisoluZ = np.max(visual_input[j7, :, 2], axis=0)
+      minisoluX = np.min(visual_input[j7, :, 0], axis=0)
+      minisoluY = np.min(visual_input[j7, :, 1], axis=0)
+      minisoluZ = np.min(visual_input[j7, :, 2], axis=0)
+      maxiX.append(maxisoluX)
+      miniX.append(minisoluX)
+      maxiY.append(maxisoluY)
+      miniY.append(minisoluY)
+      maxiZ.append(maxisoluZ)
+      miniZ.append(minisoluZ)
+  maxiX = np.asarray(maxiX)
+  maxiY = np.asarray(maxiY)
+  maxiZ = np.asarray(maxiZ)
+  miniX = np.asarray(miniX)
+  miniY = np.asarray(miniY)
+  miniZ = np.asarray(miniZ)
+
+  max_allX = np.max(maxiX)
+  max_allY = np.max(maxiY)
+  max_allZ = np.max(maxiZ)
+  min_allX = np.min(miniX)
+  min_allY = np.min(miniY)
+  min_allZ = np.min(miniZ)
+
+  print('X is between  {nix} and {mix}'.format(mix=max_allX, nix=min_allX))
+  print('Y is between {niY} and {miY}'.format(miY=max_allY, niY=min_allY))
+  print('Z is between {niZ} and {miZ}'.format(miZ=max_allZ, niZ=min_allZ))
+
+  # Here I would need to reduce the number of joints 
+  nr_final_selected_joitns = num_selected_features
+  if nr_final_selected_joitns==15: 
+    selector = np.zeros(nr_final_selected_joitns)
+    #selected joints are: Lhipjoint, Lfemur, Lfoot, Rhipjoint, Rfemur, Rfoot, Throax, Lowerneck, Head, Lclavicle, Lradius, Lhand, Rclavicle, Rradius, Rhand
+    selector = [0, 1, 3, 5, 6, 8, 12, 13, 15, 16, 18, 20, 23, 25, 27]
+
+  elif nr_final_selected_joitns==16: 
+    selector = np.zeros(nr_final_selected_joitns)
+    #selected joints are: Lhipjoint, Lfemur, Lfoot, Rhipjoint, Rfemur, Rfoot, Lowerback, Throax, Lowerneck, Head, Lclavicle, Lradius, Lhand, Rclavicle, Rradius, Rhand
+    selector = [0, 1, 3, 5, 6, 8, 10, 12, 13, 15, 16, 18, 20, 23, 25, 27]
+
+  Joints_list_all = []
+  for key in joints.keys():
+    Joints_list_all.append(key)
+
+  selected_joint_names = []
+  for sj in selector:
+    selected_joint_names.append(Joints_list_all[sj+1])
+
+  visual_input = visual_input[selector, :, :]
+
+  return visual_input, selected_joint_names
+

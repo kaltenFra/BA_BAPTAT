@@ -38,6 +38,35 @@ class BAPTAT_evaluator():
         return prediction_error
 
 
+    def prediction_errors_nxm(self, 
+                          observations, 
+                          additional_features,
+                          num_observed_features,
+                          final_predictions, 
+                          loss_function):
+
+        prediction_error = []
+        for i in range(self.num_frames-1):
+            with torch.no_grad():
+                obs = observations[i+1]
+                obs = [obs[i] for i in range(num_observed_features) if (i not in additional_features)]
+                obs_t = self.preprocessor.convert_data_AT_to_LSTM(torch.stack(obs))
+                pred_t = final_predictions[i]
+                loss = loss_function(pred_t, obs_t[0])
+                prediction_error.append(loss)
+
+        fig = plt.figure()
+        axes = fig.add_axes([0.1, 0.1, 0.8, 0.8]) 
+        axes.plot(prediction_error, 'r')
+        axes.grid(True)
+        axes.set_xlabel('frames')
+        axes.set_ylabel('prediction error')
+        axes.set_title('Prediction error after active tuning')
+        plt.show()
+
+        return prediction_error
+
+
     def plot_at_losses(self, losses, title): 
         fig = plt.figure()
         axes = fig.add_axes([0.1, 0.1, 0.8, 0.8]) 
@@ -83,7 +112,8 @@ class BAPTAT_evaluator():
         ## Adds numbers to plot
         for (i, j), z in np.ndenumerate(bm): 
             # ndenumerate function for generating multidimensional index iterator.
-            ax.text(i, j, '{:0.3f}'.format(z), ha='center', va='center')
+            # NOTE i is y-coordinate and j is x-coordinate
+            ax.text(j, i, '{:0.3f}'.format(z), ha='center', va='center')
             # adds a text into the plot where i and j are the coordinates
             # and z is the assigned number 
 
@@ -92,6 +122,35 @@ class BAPTAT_evaluator():
         ax.set_xticklabels(feature_names)
         ax.set_xlabel('observed input')
         ax.xaxis.set_label_position('top') 
+        ax.set_yticks(np.arange(len(feature_names)))
+        ax.set_yticklabels(feature_names)
+        ax.set_ylabel('input feature')
+
+        plt.title(title, size = 12, fontweight='bold')
+        plt.show()
+
+    
+    def plot_binding_matrix_nxm(self, binding_matrix, feature_names, num_observed_features, additional_features, title): 
+        bm = binding_matrix.detach().numpy()
+        fig = plt.figure(figsize=(20,20))
+        ax = fig.add_subplot(111)
+        cax = ax.matshow(bm)            # draws matrix
+        cb = fig.colorbar(cax, ax=ax, shrink=0.7)   # draws colorbar
+
+        ## Adds numbers to plot
+        for (i, j), z in np.ndenumerate(bm): 
+            # ndenumerate function for generating multidimensional index iterator.
+            ax.text(j, i, '{:0.3f}'.format(z), ha='center', va='center')
+            # NOTE i is y-coordinate and j is x-coordinate
+            # adds a text into the plot where i and j are the coordinates
+            # and z is the assigned number 
+
+        ## adding titles
+        ax.set_xticks(np.arange(len(feature_names)))
+        ax.set_xticklabels(feature_names)
+        ax.set_xlabel('observed input')
+        ax.xaxis.set_label_position('top') 
+        feature_names = [feature_names[i] for i in range(num_observed_features) if (i not in additional_features)]
         ax.set_yticks(np.arange(len(feature_names)))
         ax.set_yticklabels(feature_names)
         ax.set_ylabel('input feature')
@@ -110,6 +169,30 @@ class BAPTAT_evaluator():
             for i in range(self.num_features):
                 if i != j: 
                     b += torch.square(bm[j,i])
+            fbe += torch.sqrt(a+b)
+        return fbe
+
+    
+    def FBE_nxm(self, bm, ideal, additional_features): 
+        
+        j = 0
+        bm_sq = bm.clone().detach()
+        bm_sq = bm_sq[:-1]
+        for i in additional_features:
+            i = i-j
+            j += 1
+            bm_1 = bm_sq[:,:i]
+            bm_2 = bm_sq[:,i+1:]
+            bm_sq = np.hstack([bm_1, bm_2])
+        
+        bm_sq = torch.Tensor(bm_sq)
+        fbe = self.FBE(bm_sq, torch.Tensor(np.identity(self.num_features)))
+        
+        for j in additional_features:
+            a = torch.square(bm[self.num_features,j]-ideal[self.num_features,j])
+            b = 0
+            for i in range(self.num_features):
+                b += torch.square(bm[i,j])
             fbe += torch.sqrt(a+b)
         return fbe
 

@@ -1,6 +1,5 @@
 # packet imports 
 import numpy as np
-from numpy.core.fromnumeric import shape
 from numpy.lib.function_base import append 
 import torch
 import copy
@@ -8,7 +7,6 @@ from torch import nn, autograd
 from torch.autograd import Variable
 from torch._C import device
 import matplotlib.pyplot as plt
-from torch.functional import norm
 
 # class imports 
 from BinAndPerspTaking.binding import Binder
@@ -25,10 +23,11 @@ from BAPTAT_evaluation import BAPTAT_evaluator
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 autograd.set_detect_anomaly(True)
 
-torch.set_printoptions(precision=9)
+torch.set_printoptions(precision=8)
+
 
 ## Define data parameters
-num_frames = 150
+num_frames = 100
 num_input_features = 15
 num_input_dimensions = 3
 preprocessor = Preprocessor(num_input_features, num_input_dimensions)
@@ -54,11 +53,15 @@ l1Loss = nn.L1Loss()
 l2Loss = lambda x,y: mse(x, y) * (num_input_dimensions * num_input_features)
 
 # define learning parameters 
-at_loss_function = l1Loss
+at_loss_function = l1Loss # Function with which the LSTM was trained 
 at_learning_rate = 1
+# TODO try different learning rates 
 at_learning_rate_state = 0.0
-c_momentum = 0.0
+loss_scale_factor = 0.6
 
+bm_momentum = 0.0
+c_momentum = 0.0
+r_momentum = 0.0
 
 ## Define tuning variables
 # general
@@ -72,9 +75,29 @@ at_losses = []
 at_states = []
 # state_optimizer = torch.optim.Adam(init_state, at_learning_rate)
 
-# rotation
+# binding
+bindSM = nn.Softmax(dim=0)  # columnwise
+binder = BinderExMat(num_features=num_input_features, gradient_init=True)
+ideal_binding = torch.Tensor(np.identity(num_input_features))
+
+Bs = []
+B_grads = [None] * (tuning_length+1)
+B_upd = [None] * (tuning_length+1)
+bm_losses = []
+bm_dets = []
+
+# translation
 perspective_taker = Perspective_Taker(num_input_features, num_input_dimensions,
                     rotation_gradient_init=True, translation_gradient_init=True)
+ideal_trans = torch.zeros(3)
+
+Cs = []
+C_grads = [None] * (tuning_length+1)
+C_upd = [None] * (tuning_length+1)
+c_losses = []
+c_norms = []
+
+# rotation
 ideal_angle = torch.zeros(num_input_dimensions, 1)
 ideal_rotation = torch.Tensor(np.identity(num_input_dimensions))
 
@@ -98,9 +121,39 @@ core_model.load_state_dict(torch.load(model_path))
 core_model.eval()
 
 
-## Rotation matrices 
+## Binding matrices 
+# Init binding entries 
+be = binder.init_binding_entries_det_()
+print(be)
+
+for i in range(tuning_length+1):
+    entries = []
+    for j in range(num_input_features):
+        row = []
+        for k in range(num_input_features):
+            entry = be[j][k].clone()
+            entry.requires_grad_()
+            row.append(entry)
+        entries.append(row)
+    Bs.append(entries)
+    
+print(f'BMs different in list: {Bs[0] is not Bs[1]}')
+
+
+## Translation biases 
+tb = perspective_taker.init_translation_bias_()
+
+for i in range(tuning_length+1):
+    # transba = copy.deepcopy(tb)
+    transba = tb.clone()
+    transba.requires_grad = True
+    Cs.append(transba)
+
+print(f'BMs different in list: {Cs[0] is not Cs[1]}')
+
+
+# Rotation matrices 
 # ra = perspective_taker.init_angles_()
-# print(ra)
 ra = torch.Tensor([[309.89], [82.234], [95.765]])
 print(ra)
 
@@ -137,16 +190,21 @@ for i in range(tuning_length):
     at_inputs = torch.cat((at_inputs, o.reshape(1, num_input_features, num_input_dimensions)), 0)
     obs_count += 1
 
+    # compute matrices
+    bm = binder.compute_binding_matrix(Bs[i], bindSM)
     rotmat = perspective_taker.compute_rotation_matrix_(Rs[i][0], Rs[i][1], Rs[i][2])
-    x_R = perspective_taker.rotate(o, rotmat)
-
+    
+    # perform translation, binding and rotation
+    x_C = perspective_taker.translate(o, Cs[i])
+    x_B = binder.bind(x_C, bm)
+    x_R = perspective_taker.rotate(x_B, rotmat)
     x = preprocessor.convert_data_AT_to_LSTM(x_R)
 
+    # make prediction
     state = (state[0] * state_scaler, state[1] * state_scaler)
     new_prediction, state = core_model(x, state)  
     at_states.append(state)
     at_predictions = torch.cat((at_predictions, new_prediction.reshape(1,45)), 0)
-
 
 ############################################################################
 ##########  ACTIVE TUNING ##################################################
@@ -156,9 +214,14 @@ while obs_count < num_frames:
     o = observations[obs_count]
     obs_count += 1
 
+    # compute matrices
+    bm = binder.compute_binding_matrix(Bs[-1], bindSM)
     rotmat = perspective_taker.compute_rotation_matrix_(Rs[-1][0], Rs[-1][1], Rs[-1][2])
-    x_R = perspective_taker.rotate(o, rotmat)
-
+    
+    # perform translation, binding and rotation
+    x_C = perspective_taker.translate(o, Cs[-1])
+    x_B = binder.bind(x_C, bm)
+    x_R = perspective_taker.rotate(x_B, rotmat)
     x = preprocessor.convert_data_AT_to_LSTM(x_R)
 
     ## Generate current prediction 
@@ -174,11 +237,14 @@ while obs_count < num_frames:
         p = at_predictions[-1]
 
         # Calculate error 
-        loss_scale_factor = 2
-        # loss = mse(p,x[0])
+        # loss_scale = torch.square(torch.mean(torch.norm(bm.clone().detach(), dim=1, keepdim=True)) -1.) ##COPY?????
+        # print(f'loss scale: {loss_scale}')
+        # l1scale = loss_scale_factor * loss_scale
+        # l2scale = loss_scale_factor / loss_scale
+
+        # loss = loss_scale_factor * loss_scale * l2Loss(p,x[0]) + mse(p,x[0])
         loss = loss_scale_factor * l2Loss(p,x[0]) + mse(p,x[0])
-        # loss = (loss_scale_factor * l2Loss(p,x[0]) + 1) * mse(p,x[0])
-        # loss = loss_scale_factor * l1Loss(p,x[0]) + mse(p,x[0])
+        # loss = mse(p,x[0])
 
         at_losses.append(loss)
         print(f'frame: {obs_count} cycle: {cycle} loss: {loss}')
@@ -189,6 +255,124 @@ while obs_count < num_frames:
         # Update parameters 
         with torch.no_grad():
             
+            #################### BINDING ####################
+            # Calculate gradients with respect to the entires 
+            for i in range(tuning_length+1):
+                grad = []
+                for j in range(num_input_features):
+                    row = []
+                    for k in range(num_input_features):
+                        row.append(Bs[i][j][k].grad)
+                    grad.append(torch.stack(row))
+                B_grads[i] = torch.stack(grad)
+
+            # print(B_grads[tuning_length])
+            
+            # Calculate overall gradients 
+            ### version 1
+            # grad_B = B_grads[0]
+            ### version 2 / 3
+            # grad_B = torch.mean(torch.stack(B_grads), 0)
+            ### version 4
+            # # # # bias > 1 => favor recent
+            # # # # bias < 1 => favor earlier
+            bias = 1.5
+            weighted_grads_B = [None] * (tuning_length+1)
+            for i in range(tuning_length+1):
+                weighted_grads_B[i] = np.power(bias, i) * B_grads[i]
+            grad_B = torch.mean(torch.stack(weighted_grads_B), dim=0)
+            
+            # print(f'grad_B: {grad_B}')
+            # print(f'grad_B: {torch.norm(grad_B, 1)}')
+            
+
+            # Update parameters in time step t-H with saved gradients 
+            upd_B = binder.update_binding_entries_(Bs[0], grad_B, at_learning_rate, bm_momentum)
+
+            # Compare binding matrix to ideal matrix
+            c_bm = binder.compute_binding_matrix(upd_B, bindSM)
+            mat_loss = evaluator.FBE(c_bm, ideal_binding)
+            bm_losses.append(mat_loss)
+            print(f'loss of binding matrix (FBE): {mat_loss}')
+
+            # Compute determinante of binding matrix
+            det = torch.det(c_bm)
+            bm_dets.append(det)
+            print(f'determinante of binding matrix: {det}')
+            
+            
+            # Zero out gradients for all parameters in all time steps of tuning horizon
+            for i in range(tuning_length+1):
+                for j in range(num_input_features):
+                    for k in range(num_input_features):
+                        Bs[i][j][k].requires_grad = False
+                        Bs[i][j][k].grad.data.zero_()
+
+            # Update all parameters for all time steps 
+            for i in range(tuning_length+1):
+                entries = []
+                for j in range(num_input_features):
+                    row = []
+                    for k in range(num_input_features):
+                        entry = upd_B[j][k].clone()
+                        entry.requires_grad_()
+                        row.append(entry)
+                    entries.append(row)
+                Bs[i] = entries
+            
+            # print(Bs[0])
+
+            #################### TRANSLATION ####################
+            for i in range(tuning_length+1):
+                # save grads for all parameters in all time steps of tuning horizon 
+                C_grads[i] = Cs[i].grad
+                # print(Cs[i].grad)
+            # print(C_grads[tuning_length])
+            
+            # Calculate overall gradients 
+            ### version 1
+            # grad_C = C_grads[0]
+            ### version 2 / 3
+            grad_C = torch.mean(torch.stack(C_grads),0)
+            ### version 4
+            # bias = 10
+            # # bias > 1 => favor recent
+            # # bias < 1 => favor earlier
+            # weighted_grads_C = [None] * (tuning_length+1)
+            # for i in range(tuning_length+1):
+            #     weighted_grads_C[i] = np.power(bias, i) * C_grads[i]
+            # grad_C = torch.mean(torch.stack(weighted_grads_C))
+            
+            # print(f'grad_C: {grad_C}')
+
+            # Update parameters in time step t-H with saved gradients 
+            upd_C = perspective_taker.update_translation_bias_(Cs[0], grad_C, at_learning_rate, c_momentum)
+            # for i in range(tuning_length+1):
+            #     C_upd[i] = perspective_taker.update_translation_bias_(Cs[i], grad_C, at_learning_rate)
+            print(upd_C)
+
+            # Compare translation bias to ideal bias
+            trans_loss = mse(ideal_trans, upd_C)
+            c_losses.append(trans_loss)
+            print(f'loss of translation bias (MSE): {trans_loss}')
+
+            # Compute norm of bias
+            trans_norm = torch.norm(upd_C)
+            c_norms.append(trans_loss)
+            print(f'norm of translation bias: {trans_norm}')
+
+            # Zero out gradients for all parameters in all time steps of tuning horizon
+            for i in range(tuning_length+1):
+                Cs[i].grad.data.zero_()
+            
+            # Update all parameters for all time steps 
+            for i in range(tuning_length+1):
+                Cs[i].data = upd_C.clone().data
+
+            # print(Cs[0])
+
+            #################### ROTATION ####################
+
             ## Rotation Matrix
             for i in range(tuning_length+1):
                 # save grads for all parameters in all time steps of tuning horizon
@@ -216,14 +400,10 @@ while obs_count < num_frames:
 
             # Update parameters in time step t-H with saved gradients 
             upd_R = perspective_taker.update_rotation_angles_(Rs[0], grad_R, at_learning_rate)
-            # for i in range(tuning_length+1):
-            #     B_upd[i] = binder.update_binding_matrix_(Bs[i], grad_B, at_learning_rate)
             print(f'updated angles: {upd_R}')
 
             # Compare binding matrix to ideal matrix
             ang_loss = 2 - (torch.cos(torch.deg2rad(torch.stack(upd_R))) + 1)
-            # ang_loss = at_loss_function(ideal_angle, torch.stack(upd_R))
-            # mat_loss = at_loss_function(ideal_binding, B_upd[0])
             print(f'loss of rotation angles: \n  {ang_loss}, \n  with norm {torch.norm(ang_loss)}')
             ra_losses.append(torch.norm(ang_loss))
 
@@ -232,18 +412,12 @@ while obs_count < num_frames:
             print(f'loss of rotation matrix: {mat_loss}')
             rm_losses.append(mat_loss)
 
-            
-            # print(Rs[0][0].grad)
-            # print(Rs[0][1].grad)
-            # print(Rs[0][2].grad)
-            # print(Rs[0])
             # Zero out gradients for all parameters in all time steps of tuning horizon
             for i in range(tuning_length+1):
                 for j in range(num_input_dimensions):
                     Rs[i][j].requires_grad = False
                     Rs[i][j].grad.data.zero_()
 
-            # print(Rs[0])
             # Update all parameters for all time steps 
             for i in range(tuning_length+1):
                 angles = []
@@ -253,7 +427,8 @@ while obs_count < num_frames:
                     angles.append(angle)
                 Rs[i] = angles
             # print(Rs[0])
-            # print(Rs[0][0].grad)
+
+            #################### CELL STATE ####################
 
             # Initial state
             g_h = at_h.grad
@@ -274,18 +449,24 @@ while obs_count < num_frames:
         ## REORGANIZE FOR MULTIPLE CYCLES!!!!!!!!!!!!!
 
         # forward pass from t-H to t with new parameters 
-        # Update init state???
         init_state = (at_h, at_c)
         state = (init_state[0], init_state[1])
         for i in range(tuning_length):
 
+            # compute matrices
+            bm = binder.compute_binding_matrix(Bs[i], bindSM)
             rotmat = perspective_taker.compute_rotation_matrix_(Rs[i][0], Rs[i][1], Rs[i][2])
-            x_R = perspective_taker.rotate(at_inputs[i], rotmat)
+            
+            # perform translation, binding and rotation
+            x_C = perspective_taker.translate(o, Cs[i])
+            x_B = binder.bind(x_C, bm)
+            x_R = perspective_taker.rotate(x_B, rotmat)
             x = preprocessor.convert_data_AT_to_LSTM(x_R)
 
-            # print(f'x_R :{x_R}')
-
+            # make prediction
+            state = (state[0] * state_scaler, state[1] * state_scaler)
             at_predictions[i], state = core_model(x, state)
+            
             # for last tuning cycle update initial state to track gradients 
             if cycle==(tuning_cycles-1) and i==0: 
                 at_h = state[0].clone().detach().requires_grad_()
@@ -295,15 +476,24 @@ while obs_count < num_frames:
 
             at_states[i+1] = state 
 
-        # Update current binding
+        # Update current parameters
+        # compute matrices
+        bm = binder.compute_binding_matrix(Bs[-1], bindSM)
         rotmat = perspective_taker.compute_rotation_matrix_(Rs[-1][0], Rs[-1][1], Rs[-1][2])
-        x_R = perspective_taker.rotate(o, rotmat)
+        
+        # perform translation, binding and rotation
+        x_C = perspective_taker.translate(o, Cs[-1])
+        x_B = binder.bind(x_C, bm)
+        x_R = perspective_taker.rotate(x_B, rotmat)
         x = preprocessor.convert_data_AT_to_LSTM(x_R)
+
 
     # END tuning cycle        
 
     ## Generate updated prediction 
-    new_prediction, state = core_model(x, at_states[-1])
+    state = at_states[-1]
+    state = (state[0] * state_scaler, state[1] * state_scaler)
+    new_prediction, state = core_model(x, state)
 
     ## Reorganize storage variables
     # states
@@ -326,8 +516,14 @@ for i in range(tuning_length):
     at_final_predictions = torch.cat((at_final_predictions, at_predictions[1].reshape(1,45)), 0)
 
 # get final binding matrix
-final_rotation_matrix = Rs[0]
-print(f'final rotation matrix: {final_rotation_matrix}')
+final_binding_matrix = binder.compute_binding_matrix(Bs[-1], bindSM)
+print(f'final binding matrix: {final_binding_matrix}')
+final_binding_entires = torch.tensor(Bs[-1])
+print(f'final binding entires: {final_binding_entires}')
+
+# get final translation bias
+final_translation_bias = Cs[0]
+print(f'final translation bias: {final_translation_bias}')
 
 
 ############################################################################
@@ -336,10 +532,23 @@ pred_errors = evaluator.prediction_errors(observations,
                                           at_final_predictions, 
                                           at_loss_function)
 
-evaluator.plot_at_losses(at_losses,'History of overall losses during active tuning')
+evaluator.plot_at_losses(at_losses, 'History of overall losses during active tuning')
+evaluator.plot_at_losses(bm_losses, 'History of binding matrix loss (FBE)')
+evaluator.plot_at_losses(bm_dets, 'History of binding matrix determinante')
+evaluator.plot_at_losses(c_losses,'History of translation bias loss (MSE)')
+evaluator.plot_at_losses(c_norms,'History of translation bias norms')
 evaluator.plot_at_losses(rm_losses,'History of rotaion matrix loss (MSE)')
 evaluator.plot_at_losses(ra_losses,'History of norm of rotation angle error')
 
-# evaluator.plot_rotation_matrix(final_rotation_matrix)
+evaluator.plot_binding_matrix(
+    final_binding_matrix, 
+    feature_names, 
+    'Binding matrix showing relative contribution of observed feature to input feature'
+)
+evaluator.plot_binding_matrix(
+    final_binding_entires, 
+    feature_names, 
+    'Binding matrix entries showing contribution of observed feature to input feature'
+)
 
 # evaluator.help_visualize_devel(observations, at_final_predictions)

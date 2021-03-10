@@ -250,7 +250,7 @@ def main():
     # loss_function=nn.MSELoss()
     # loss_function= lambda x, y: mse(x, y) * (num_features * num_dimensions)
     loss_function=nn.L1Loss()
-    learning_rate=0.005
+    learning_rate=0.01
     momentum=0.0
     l2_penality=0.1
 
@@ -269,7 +269,7 @@ def main():
     # Init tools
     data_asf_path = 'Data_Compiler/S35T07.asf'
     data_amc_path = 'Data_Compiler/S35T07.amc'
-    model_save_path = 'CoreLSTM/models/LSTM_53_cell.pt'
+    model_save_path = 'CoreLSTM/models/LSTM_54_cell.pt'
 
     # Preprocess data
     io_seq, dt_train, dt_test = prepro.get_LSTM_data(

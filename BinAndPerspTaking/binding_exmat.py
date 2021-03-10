@@ -1,5 +1,8 @@
+import numpy as np
 import torch
+from torch import nn
 from torch.autograd import Variable
+from torch.serialization import PROTOCOL_VERSION
 
 class BinderExMat():
     """
@@ -12,9 +15,27 @@ class BinderExMat():
         self.bin_momentum = [None, None]
 
 
-    def init_binding_matrix_(self):
-        binding_matrix = Variable(torch.rand(self.num_features, self.num_features), 
-                                    requires_grad=False)
+    def __init__(self, num_features, num_observations, gradient_init):
+        self.gradient_init = gradient_init
+        self.num_features = num_features
+        self.num_observations = num_observations
+        self.bin_momentum = [None, None]
+
+
+    def init_binding_matrix_rand_(self):
+        # binding_matrix = torch.rand(self.num_features, self.num_features)
+        binding_matrix = torch.rand(self.num_observations, self.num_features)
+        return binding_matrix
+
+
+    def init_binding_matrix_det_(self):
+        init_val = 1.0/self.num_features
+        # binding_matrix = torch.Tensor(self.num_features, self.num_features)
+        # binding_matrix = torch.Tensor(self.num_observations, self.num_features)
+        binding_matrix = torch.Tensor(self.num_features, self.num_observations)
+        # binding_matrix = torch.Tensor(self.num_features+1, self.num_observations)
+        binding_matrix.requires_grad = False
+        binding_matrix = binding_matrix.fill_(init_val)
         return binding_matrix
 
 
@@ -26,22 +47,82 @@ class BinderExMat():
     def init_binding_entries_det_(self):
         init_val = 1.0/self.num_features
         binding_entries = torch.Tensor(self.num_features, self.num_features)
-        binding_entries.requires_grad_ = False
+        binding_entries.requires_grad = False
         binding_entries = binding_entries.fill_(init_val)
         return binding_entries
+
+
+    def ideal_nxm_binding(self, additional_features):
+        ideal = np.identity(self.num_features)
+        zeros = np.zeros((self.num_features, 1))
+        for i in additional_features: 
+            ideal_1 = ideal[:, :i]
+            ideal_2 = ideal[:, i:]
+            ideal = np.hstack([ideal_1, zeros, ideal_2])
+        
+        dummy_line = np.zeros((1, self.num_observations))
+        for i in additional_features: 
+            dummy_line[0, i] = 1
+        
+        ideal = np.vstack([ideal, dummy_line])
+        
+        return torch.Tensor(ideal)
     
 
-    def compute_binding_matrix(self, entries, scaler):
+    def compute_binding_matrix(self, entries):
         bes = []
         for i in range(self.num_features):
             bes.append(torch.stack(entries[i]))
-        bm = scaler(torch.stack(bes))
+        bm = torch.stack(bes)
+        
+        # compute sigmoidal
+        # bm = nn.functional.sigmoid(bm)
+
+        ## compute seperately
+        bmrw = nn.functional.softmax(bm, dim=1)
+        bmcw = nn.functional.softmax(bm, dim=0)
+        
+        # componentwise multiplication
+        bm = torch.sqrt(torch.mul(bmrw, bmcw))
+        # bm = torch.mul(bmrw, bmcw)
+        # bm = torch.mean(torch.stack([bmrw, bmcw]), 0)
+
+        # compute nested
+        # bm = nn.functional.softmax(bmrw, dim=0)
+        # bm = nn.functional.softmax(bmcw, dim=1)
+       
+        return bm
+
+    def scale_binding_matrix(self, bm):
+        # bm = torch.cat([bm, torch.zeros(1,self.num_observations)])
+              
+        # compute sigmoidal
+        # bm = nn.functional.sigmoid(bm)
+
+        ## compute seperately
+        bmrw = nn.functional.softmax(bm, dim=1)
+        bmcw = nn.functional.softmax(bm, dim=0)
+        
+        # componentwise multiplication
+        bm = torch.sqrt(torch.mul(bmrw, bmcw))
+        # bm = torch.mul(bmrw, bmcw)
+        # bm = torch.mean(torch.stack([bmrw, bmcw]), 0)
+
+        # compute nested
+        # bm = nn.functional.softmax(bmrw, dim=0)
+        # bm = nn.functional.softmax(bmcw, dim=1)
+       
         return bm
 
 
-    def update_binding_matrix_(self, matrix, gradient, learning_rate):
-        binding_matrix = Variable(matrix - learning_rate * gradient, 
-                                  requires_grad=self.gradient_init)
+    def update_binding_matrix_(self, matrix, gradient, learning_rate, momentum):
+        mom = momentum*self.calc_momentum()
+        binding_matrix = matrix - learning_rate * gradient + mom
+        return binding_matrix
+
+    def update_binding_matrix_nxm_(self, matrix, gradient, learning_rate, momentum):
+        mom = momentum*self.calc_momentum_nxm()
+        binding_matrix = matrix - learning_rate * gradient + mom
         return binding_matrix
 
     
@@ -72,9 +153,13 @@ class BinderExMat():
         else:
             return self.bin_momentum[1] - self.bin_momentum[0]
 
+    def calc_momentum_nxm(self):
+        if self.bin_momentum[0] == None: 
+            return torch.zeros(self.num_features+1, self.num_observations)
+        else:
+            return self.bin_momentum[1] - self.bin_momentum[0]
 
     def bind(self, input, bind_matrix):
         binded = torch.matmul(bind_matrix, input)
-        # binded = Variable(torch.matmul(bind_matrix, input), requires_grad=True)
         return binded
 

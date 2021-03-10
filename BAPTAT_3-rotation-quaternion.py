@@ -28,7 +28,7 @@ autograd.set_detect_anomaly(True)
 torch.set_printoptions(precision=9)
 
 ## Define data parameters
-num_frames = 150
+num_frames = 50
 num_input_features = 15
 num_input_dimensions = 3
 preprocessor = Preprocessor(num_input_features, num_input_dimensions)
@@ -51,13 +51,14 @@ tuning_cycles = 3       # number of tuning cycles in each iteration
 # possible loss functions
 mse = nn.MSELoss()
 l1Loss = nn.L1Loss()
+smL1Loss = nn.SmoothL1Loss()
 l2Loss = lambda x,y: mse(x, y) * (num_input_dimensions * num_input_features)
 
 # define learning parameters 
 at_loss_function = l1Loss
 at_learning_rate = 1
 at_learning_rate_state = 0.0
-c_momentum = 0.0
+r_momentum = 0.0
 
 
 ## Define tuning variables
@@ -75,7 +76,7 @@ at_states = []
 # rotation
 perspective_taker = Perspective_Taker(num_input_features, num_input_dimensions,
                     rotation_gradient_init=True, translation_gradient_init=True)
-ideal_angle = torch.zeros(num_input_dimensions, 1)
+ideal_quat = torch.zeros(1,num_input_dimensions)
 ideal_rotation = torch.Tensor(np.identity(num_input_dimensions))
 
 Rs = []
@@ -98,19 +99,14 @@ core_model.load_state_dict(torch.load(model_path))
 core_model.eval()
 
 
-## Rotation matrices 
-# ra = perspective_taker.init_angles_()
-# print(ra)
-ra = torch.Tensor([[309.89], [82.234], [95.765]])
-print(ra)
+## Rotation quaternion 
+rq = perspective_taker.init_quaternion()
+print(rq)
 
 for i in range(tuning_length+1):
-    angles = []
-    for j in range(num_input_dimensions):
-        angle = ra[j].clone()
-        angle.requires_grad_()
-        angles.append(angle)
-    Rs.append(angles)
+    quat = rq.clone()
+    quat.requires_grad_()
+    Rs.append(quat)
 
 print(Rs[0])
 print(f'RAs different in list: {Rs[0] is not Rs[1]}')
@@ -137,9 +133,7 @@ for i in range(tuning_length):
     at_inputs = torch.cat((at_inputs, o.reshape(1, num_input_features, num_input_dimensions)), 0)
     obs_count += 1
 
-    rotmat = perspective_taker.compute_rotation_matrix_(Rs[i][0], Rs[i][1], Rs[i][2])
-    x_R = perspective_taker.rotate(o, rotmat)
-
+    x_R = perspective_taker.qrotate(o, Rs[i])
     x = preprocessor.convert_data_AT_to_LSTM(x_R)
 
     state = (state[0] * state_scaler, state[1] * state_scaler)
@@ -156,9 +150,7 @@ while obs_count < num_frames:
     o = observations[obs_count]
     obs_count += 1
 
-    rotmat = perspective_taker.compute_rotation_matrix_(Rs[-1][0], Rs[-1][1], Rs[-1][2])
-    x_R = perspective_taker.rotate(o, rotmat)
-
+    x_R = perspective_taker.qrotate(o, Rs[-1])
     x = preprocessor.convert_data_AT_to_LSTM(x_R)
 
     ## Generate current prediction 
@@ -174,11 +166,12 @@ while obs_count < num_frames:
         p = at_predictions[-1]
 
         # Calculate error 
-        loss_scale_factor = 2
+        # loss_scale_factor = 2
         # loss = mse(p,x[0])
-        loss = loss_scale_factor * l2Loss(p,x[0]) + mse(p,x[0])
+        # loss = loss_scale_factor * l2Loss(p,x[0]) + mse(p,x[0])
         # loss = (loss_scale_factor * l2Loss(p,x[0]) + 1) * mse(p,x[0])
         # loss = loss_scale_factor * l1Loss(p,x[0]) + mse(p,x[0])
+        loss = smL1Loss(p, x[0])
 
         at_losses.append(loss)
         print(f'frame: {obs_count} cycle: {cycle} loss: {loss}')
@@ -192,68 +185,47 @@ while obs_count < num_frames:
             ## Rotation Matrix
             for i in range(tuning_length+1):
                 # save grads for all parameters in all time steps of tuning horizon
-                grad = []
-                for j in range(num_input_dimensions):
-                    grad.append(Rs[i][j].grad) 
-                R_grads[i] = torch.stack(grad)
-            # print(R_grads[tuning_length])
+                R_grads[i] = Rs[i].grad
+            print(R_grads[tuning_length])
             
             # Calculate overall gradients 
             ### version 1
             # grad_R = R_grads[0]
             ### version 2 / 3
-            # grad_R = torch.mean(torch.stack(R_grads), dim=0)
+            grad_R = torch.mean(torch.stack(R_grads), dim=0)
             ### version 4
             # # bias > 1 => favor recent
             # # bias < 1 => favor earlier
-            bias = 1.5
-            weighted_grads_R = [None] * (tuning_length+1)
-            for i in range(tuning_length+1):
-                weighted_grads_R[i] = np.power(bias, i) * R_grads[i]
-            grad_R = torch.mean(torch.stack(weighted_grads_R), dim=0)
+            # bias = 1.5
+            # weighted_grads_R = [None] * (tuning_length+1)
+            # for i in range(tuning_length+1):
+            #     weighted_grads_R[i] = np.power(bias, i) * R_grads[i]
+            # grad_R = torch.mean(torch.stack(weighted_grads_R), dim=0)
             
             print(f'grad_R: {grad_R}')
 
             # Update parameters in time step t-H with saved gradients 
-            upd_R = perspective_taker.update_rotation_angles_(Rs[0], grad_R, at_learning_rate)
-            # for i in range(tuning_length+1):
-            #     B_upd[i] = binder.update_binding_matrix_(Bs[i], grad_B, at_learning_rate)
-            print(f'updated angles: {upd_R}')
+            upd_R = perspective_taker.update_quaternion(Rs[0], grad_R, at_learning_rate, r_momentum)
+            print(f'updated quaternion: {upd_R}')
 
-            # Compare binding matrix to ideal matrix
-            ang_loss = 2 - (torch.cos(torch.deg2rad(torch.stack(upd_R))) + 1)
-            # ang_loss = at_loss_function(ideal_angle, torch.stack(upd_R))
-            # mat_loss = at_loss_function(ideal_binding, B_upd[0])
-            print(f'loss of rotation angles: \n  {ang_loss}, \n  with norm {torch.norm(ang_loss)}')
-            ra_losses.append(torch.norm(ang_loss))
-
-            rotmat = perspective_taker.compute_rotation_matrix_(upd_R[0], upd_R[1], upd_R[2])
-            mat_loss = mse(ideal_rotation, rotmat[0])
+            # Compare to ideal rotation
+            rotmat = perspective_taker.quaternion2rotmat(upd_R)
+            mat_loss = mse(ideal_rotation, rotmat)
             print(f'loss of rotation matrix: {mat_loss}')
             rm_losses.append(mat_loss)
 
-            
-            # print(Rs[0][0].grad)
-            # print(Rs[0][1].grad)
-            # print(Rs[0][2].grad)
-            # print(Rs[0])
+
             # Zero out gradients for all parameters in all time steps of tuning horizon
             for i in range(tuning_length+1):
-                for j in range(num_input_dimensions):
-                    Rs[i][j].requires_grad = False
-                    Rs[i][j].grad.data.zero_()
+                Rs[i].requires_grad = False
+                Rs[i].grad.data.zero_()
 
-            # print(Rs[0])
             # Update all parameters for all time steps 
             for i in range(tuning_length+1):
-                angles = []
-                for j in range(3):
-                    angle = upd_R[j].clone()
-                    angle.requires_grad_()
-                    angles.append(angle)
-                Rs[i] = angles
+                quat = upd_R.clone()
+                quat.requires_grad_()
+                Rs[i] = quat
             # print(Rs[0])
-            # print(Rs[0][0].grad)
 
             # Initial state
             g_h = at_h.grad
@@ -279,8 +251,7 @@ while obs_count < num_frames:
         state = (init_state[0], init_state[1])
         for i in range(tuning_length):
 
-            rotmat = perspective_taker.compute_rotation_matrix_(Rs[i][0], Rs[i][1], Rs[i][2])
-            x_R = perspective_taker.rotate(at_inputs[i], rotmat)
+            x_R = perspective_taker.qrotate(o, Rs[i])
             x = preprocessor.convert_data_AT_to_LSTM(x_R)
 
             # print(f'x_R :{x_R}')
@@ -296,8 +267,7 @@ while obs_count < num_frames:
             at_states[i+1] = state 
 
         # Update current binding
-        rotmat = perspective_taker.compute_rotation_matrix_(Rs[-1][0], Rs[-1][1], Rs[-1][2])
-        x_R = perspective_taker.rotate(o, rotmat)
+        x_R = perspective_taker.qrotate(o, Rs[-1])
         x = preprocessor.convert_data_AT_to_LSTM(x_R)
 
     # END tuning cycle        
@@ -325,9 +295,15 @@ while obs_count < num_frames:
 for i in range(tuning_length): 
     at_final_predictions = torch.cat((at_final_predictions, at_predictions[1].reshape(1,45)), 0)
 
-# get final binding matrix
-final_rotation_matrix = Rs[0]
+# get final quaternion
+final_quaternion = Rs[0]
+print(f'final quaternion: {final_quaternion}')
+
+# get final rotation matrix
+final_rotation_matrix = perspective_taker.quaternion2rotmat(final_quaternion)
 print(f'final rotation matrix: {final_rotation_matrix}')
+
+
 
 
 ############################################################################
@@ -338,7 +314,6 @@ pred_errors = evaluator.prediction_errors(observations,
 
 evaluator.plot_at_losses(at_losses,'History of overall losses during active tuning')
 evaluator.plot_at_losses(rm_losses,'History of rotaion matrix loss (MSE)')
-evaluator.plot_at_losses(ra_losses,'History of norm of rotation angle error')
 
 # evaluator.plot_rotation_matrix(final_rotation_matrix)
 
