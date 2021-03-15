@@ -1,4 +1,5 @@
 # packet imports 
+from pickle import NONE
 import numpy as np
 from numpy.lib.function_base import append 
 import torch
@@ -10,10 +11,10 @@ import matplotlib.pyplot as plt
 
 # class imports 
 from BinAndPerspTaking.binding import Binder
-from BinAndPerspTaking.binding_exmat import BinderExMat
+from BinAndPerspTaking.binding_exmat import BinderExMat_nxm
 from BinAndPerspTaking.perspective_taking import Perspective_Taker
 from CoreLSTM.core_lstm import CORE_NET
-from Data_Compiler.data_preparation import Preprocessor
+from Data_Compiler.data_preparation import Preprocessor_nxm
 from BAPTAT_evaluation import BAPTAT_evaluator
 
 ############################################################################
@@ -27,12 +28,12 @@ torch.set_printoptions(precision=8)
 
 
 ## Define data parameters
-num_frames = 30
+num_frames = 100
 num_input_features = 15
 num_observed_features = 16
 index_additional_features = [6]
 num_input_dimensions = 3
-preprocessor = Preprocessor(num_input_features, num_observed_features, num_input_dimensions)
+preprocessor = Preprocessor_nxm(num_input_features, num_observed_features, num_input_dimensions)
 evaluator = BAPTAT_evaluator(num_frames, num_input_features, preprocessor)
 data_at_unlike_train = False ## Note: sample needs to be changed in the future
 
@@ -53,10 +54,10 @@ tuning_cycles = 3       # number of tuning cycles in each iteration
 mse = nn.MSELoss()
 l1Loss = nn.L1Loss()
 # smL1Loss = nn.SmoothL1Loss()
-smL1Loss = nn.SmoothL1Loss(reduction='sum')
+# smL1Loss = nn.SmoothL1Loss(reduction='sum')
 # smL1Loss = nn.SmoothL1Loss(beta=2)
 # smL1Loss = nn.SmoothL1Loss(beta=0.5)
-# smL1Loss = nn.SmoothL1Loss(reduction='sum', beta=0.5)
+smL1Loss = nn.SmoothL1Loss(reduction='sum', beta=0.5)
 l2Loss = lambda x,y: mse(x, y) * (num_input_dimensions * num_input_features)
 
 # define learning parameters 
@@ -79,7 +80,7 @@ at_states = []
 # state_optimizer = torch.optim.Adam(init_state, at_learning_rate)
 
 # binding
-binder = BinderExMat(num_input_features, num_observed_features, gradient_init=True)
+binder = BinderExMat_nxm(num_input_features, num_observed_features, gradient_init=True)
 ideal_binding = binder.ideal_nxm_binding(index_additional_features)
 
 Bs = []
@@ -87,6 +88,7 @@ B_grads = [None] * (tuning_length+1)
 B_upd = [None] * (tuning_length+1)
 bm_losses = []
 bm_dets = []
+oc_grads = []
 
 
 
@@ -107,7 +109,9 @@ core_model.eval()
 bm = binder.init_binding_matrix_det_()
 # bm = binder.init_binding_matrix_rand_()
 print(bm)
-dummie_line = torch.zeros(1,num_observed_features)
+# dummie_line = torch.zeros(1,num_observed_features)
+# dummie_line = torch.ones(1,num_observed_features)
+dummie_line = torch.ones(1,num_observed_features) * 0.1
 
 for i in range(tuning_length+1):
     matrix = bm.clone()
@@ -129,7 +133,6 @@ at_c = torch.zeros(1, core_model.hidden_size).requires_grad_()
 init_state = (at_h, at_c)
 at_states.append(init_state)
 state = (init_state[0], init_state[1])
-
 
 ############################################################################
 ##########  FORWARD PASS  ##################################################
@@ -208,7 +211,7 @@ while obs_count < num_frames:
             for i in range(tuning_length+1):
                 B_grads[i] = Bs[i].grad
 
-            print(B_grads[tuning_length])
+            # print(B_grads[tuning_length])
 
             # Calculate overall gradients 
             ### version 1
@@ -224,8 +227,17 @@ while obs_count < num_frames:
                 weighted_grads_B[i] = np.power(bias, i) * B_grads[i]
             grad_B = torch.mean(torch.stack(weighted_grads_B), dim=0)
             
-            # print(f'grad_B: {grad_B}')
+            # enhance outcast line gradients 
+            factor = 10
+            # dummy_line_grad = factor * grad_B[-1]
+            #  = torch.sqrt(grad_B[-1])
+            # dummy_line_grad = torch.log10(9*grad_B[-1] + 1)
+            dummy_line_grad = torch.log10(9*(factor*grad_B[-1]) + 1)
+            grad_B = torch.cat([grad_B[:-1], dummy_line_grad.view(1,num_observed_features)])
+            
             # print(f'grad_B: {grad_B.shape}')
+            oc_grads.append(grad_B[-1])
+            # print(f'grad_B: {grad_B[-1]}')
             
 
             # Update parameters in time step t-H with saved gradients 
@@ -273,6 +285,8 @@ while obs_count < num_frames:
         # forward pass from t-H to t with new parameters 
         init_state = (at_h, at_c)
         state = (init_state[0], init_state[1])
+        at_states = len(at_states) * [None]
+        at_states[0] = state
         for i in range(tuning_length):
 
             bm = binder.scale_binding_matrix(Bs[i])
@@ -309,13 +323,12 @@ while obs_count < num_frames:
     ## Reorganize storage variables
     # states
     at_states.append(state)
-    at_states[0][0].requires_grad = False
-    at_states[0][1].requires_grad = False
+    at_states[0] = None
     at_states = at_states[1:]
     
     # observations
     at_inputs = torch.cat((at_inputs[1:], o.reshape(1, num_observed_features, num_input_dimensions)), 0)
-    
+
     # predictions
     at_final_predictions = torch.cat((at_final_predictions, at_predictions[0].detach().reshape(1,45)), 0)
     at_predictions = torch.cat((at_predictions[1:], new_prediction.reshape(1,45)), 0)
@@ -346,7 +359,7 @@ evaluator.plot_at_losses(at_losses, 'History of overall losses during active tun
 evaluator.plot_at_losses(bm_losses, 'History of binding matrix loss (FBE)')
 
 evaluator.plot_binding_matrix_nxm(
-    final_binding_matrix[:-1], 
+    final_binding_matrix, 
     feature_names, 
     num_observed_features,
     index_additional_features, 
@@ -358,6 +371,14 @@ evaluator.plot_binding_matrix_nxm(
     num_observed_features,
     index_additional_features,
     'Binding matrix entries showing contribution of observed feature to input feature'
+)
+
+evaluator.plot_outcast_gradients(
+    oc_grads, 
+    feature_names, 
+    num_observed_features,
+    index_additional_features,
+    'Gradients of outcast line for observed features during inference'
 )
 
 # evaluator.help_visualize_devel(observations, at_final_predictions)

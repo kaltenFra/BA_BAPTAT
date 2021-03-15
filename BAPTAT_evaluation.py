@@ -158,6 +158,26 @@ class BAPTAT_evaluator():
         plt.title(title, size = 12, fontweight='bold')
         plt.show()
 
+
+    def plot_outcast_gradients(self, oc_grads, feature_names, num_observed_features, additional_features, title): 
+        oc = torch.stack(oc_grads)
+        add_feature_grads = [oc[:, i] for i in range(num_observed_features) if (i in additional_features)]
+        input_feature_grads = [oc[:, i] for i in range(num_observed_features) if (i not in additional_features)]
+        
+        fig = plt.figure()
+        axes = fig.add_axes([0.1, 0.1, 0.8, 0.8]) 
+        for grad in add_feature_grads:
+            axes.plot(grad, 'r')
+
+        for grad in input_feature_grads:
+            axes.plot(grad, 'b')
+
+        axes.grid(True)
+        axes.set_xlabel('active tuning runs')
+        axes.set_ylabel('gradients for entries')
+        axes.set_title(title)
+        plt.show()
+
     
     def FBE(self, bm, ideal): 
         fbe = 0
