@@ -124,6 +124,7 @@ def read_line(stream, idx):
 
 
 def parse_asf(file_path):
+  print(file_path)
   '''read joint data only'''
   with open(file_path) as f:
     content = f.read().splitlines()

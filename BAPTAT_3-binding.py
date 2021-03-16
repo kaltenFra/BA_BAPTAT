@@ -27,7 +27,7 @@ torch.set_printoptions(precision=8)
 
 
 ## Define data parameters
-num_frames = 30
+num_frames = 20
 num_input_features = 15
 num_input_dimensions = 3
 preprocessor = Preprocessor(num_input_features, num_input_dimensions)
@@ -93,7 +93,8 @@ bm_dets = []
 
 ## Load data
 observations, feature_names = preprocessor.get_AT_data(data_asf_path, data_amc_path, num_frames)
-    
+print(len(observations))
+exit()    
 
 ## Load model
 core_model = CORE_NET()

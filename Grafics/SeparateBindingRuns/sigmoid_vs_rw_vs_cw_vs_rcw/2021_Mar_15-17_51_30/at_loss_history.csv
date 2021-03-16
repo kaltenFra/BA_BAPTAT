@@ -1,0 +1,7 @@
+,0
+0,"tensor(1.07886875, grad_fn=<SmoothL1LossBackward>)"
+1,"tensor(0.97488123, grad_fn=<SmoothL1LossBackward>)"
+2,"tensor(0.88007146, grad_fn=<SmoothL1LossBackward>)"
+3,"tensor(0.79341167, grad_fn=<SmoothL1LossBackward>)"
+4,"tensor(0.71920669, grad_fn=<SmoothL1LossBackward>)"
+5,"tensor(0.64670509, grad_fn=<SmoothL1LossBackward>)"

@@ -26,6 +26,10 @@ class BAPTAT_evaluator():
                 loss = loss_function(pred_t, obs_t[0])
                 prediction_error.append(loss)
 
+        return prediction_error
+
+
+    def plot_prediction_errors(self, prediction_error):
         fig = plt.figure()
         axes = fig.add_axes([0.1, 0.1, 0.8, 0.8]) 
         axes.plot(prediction_error, 'r')
@@ -33,9 +37,9 @@ class BAPTAT_evaluator():
         axes.set_xlabel('frames')
         axes.set_ylabel('prediction error')
         axes.set_title('Prediction error after active tuning')
-        plt.show()
+        # plt.show()
+        return fig
 
-        return prediction_error
 
 
     def prediction_errors_nxm(self, 
@@ -75,7 +79,8 @@ class BAPTAT_evaluator():
         axes.set_xlabel('active tuning runs')
         axes.set_ylabel('loss')
         axes.set_title(title)
-        plt.show()
+        # plt.show()
+        return fig
 
 
     def help_visualize_devel(self, observations,final_predictions):
@@ -127,7 +132,8 @@ class BAPTAT_evaluator():
         ax.set_ylabel('input feature')
 
         plt.title(title, size = 12, fontweight='bold')
-        plt.show()
+        # plt.show()
+        return fig
 
     
     def plot_binding_matrix_nxm(self, binding_matrix, feature_names, num_observed_features, additional_features, title): 

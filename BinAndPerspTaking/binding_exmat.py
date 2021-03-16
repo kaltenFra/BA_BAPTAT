@@ -98,7 +98,7 @@ class BinderExMat():
         bmcw = nn.functional.softmax(bm, dim=0)
         
         # componentwise multiplication
-        # bm = torch.sqrt(torch.mul(bmrw, bmcw))
+        bm = torch.sqrt(torch.mul(bmrw, bmcw))
         # bm = torch.mul(bmrw, bmcw)
         # bm = torch.mean(torch.stack([bmrw, bmcw]), 0)
 
