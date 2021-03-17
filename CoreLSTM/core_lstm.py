@@ -3,6 +3,7 @@ from torch import nn
 
 class CORE_NET(nn.Module):
     def __init__(self, input_size=45, hidden_layer_size=360):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         super(CORE_NET,self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_layer_size
@@ -14,8 +15,8 @@ class CORE_NET(nn.Module):
 
     def forward(self, input_seq, state=None):
         if state==None:
-            h0 = torch.zeros(input_seq.size(0), self.hidden_size).requires_grad_()
-            c0 = torch.zeros(input_seq.size(0), self.hidden_size).requires_grad_()
+            h0 = torch.zeros(input_seq.size(0), self.hidden_size).requires_grad_().to(self.device)
+            c0 = torch.zeros(input_seq.size(0), self.hidden_size).requires_grad_().to(self.device)
             
         hn, cn = self.lstm(input_seq, state)
         prediction = self.linear(hn)
@@ -23,8 +24,8 @@ class CORE_NET(nn.Module):
 
     
     def init_hidden(self, batch_size):
-        return (torch.zeros(batch_size, self.hidden_size),
-                torch.zeros(batch_size, self.hidden_size))
+        return (torch.zeros(batch_size, self.hidden_size).to(self.device),
+                torch.zeros(batch_size, self.hidden_size).to(self.device))
 
 
 class PSEUDO_CORE(): 

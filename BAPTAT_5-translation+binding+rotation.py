@@ -458,7 +458,7 @@ while obs_count < num_frames:
             rotmat = perspective_taker.compute_rotation_matrix_(Rs[i][0], Rs[i][1], Rs[i][2])
             
             # perform translation, binding and rotation
-            x_C = perspective_taker.translate(o, Cs[i])
+            x_C = perspective_taker.translate(at_inputs[i], Cs[i])
             x_B = binder.bind(x_C, bm)
             x_R = perspective_taker.rotate(x_B, rotmat)
             x = preprocessor.convert_data_AT_to_LSTM(x_R)

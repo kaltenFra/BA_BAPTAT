@@ -250,7 +250,7 @@ while obs_count < num_frames:
         for i in range(tuning_length):
 
             bm = binder.compute_binding_matrix(Bs[i], bindSM)
-            x_B = binder.bind(o, bm)
+            x_B = binder.bind(at_inputs[i], bm)
 
             # print(f'x_B :{x_B}')
             div_o = div_observations[obs_count-1-(tuning_length+i)]

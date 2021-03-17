@@ -290,7 +290,7 @@ while obs_count < num_frames:
         for i in range(tuning_length):
 
             bm = binder.scale_binding_matrix(Bs[i])
-            x_B = binder.bind(o, bm[:-1])
+            x_B = binder.bind(at_inputs[i], bm[:-1])
             x = preprocessor.convert_data_AT_to_LSTM(x_B)
 
             # print(f'x_B :{x_B}')

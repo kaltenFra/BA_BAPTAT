@@ -423,7 +423,7 @@ while obs_count < num_frames:
             bm = binder.scale_binding_matrix(Bs[i])
             
             # perform translation, binding and rotation
-            x_C = perspective_taker.translate(o, Cs[i])
+            x_C = perspective_taker.translate(at_inputs[i], Cs[i])
             x_B = binder.bind(x_C, bm)
             x_R = perspective_taker.qrotate(x_B, Rs[i])
             x = preprocessor.convert_data_AT_to_LSTM(x_R)

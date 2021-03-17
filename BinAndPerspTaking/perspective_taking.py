@@ -1,3 +1,4 @@
+from numpy.lib.function_base import angle
 import torch 
 import numpy as np
 from torch.autograd import Variable
@@ -22,36 +23,9 @@ class Perspective_Taker():
 
 
     #################################################################################
-    #################### ROTATION
+    #################### EULER ROTATION
     #################################################################################
 
-    def init_rotation_matrix_(self):
-        # initialize dimensional rotation matrices 
-        R_x = Variable(torch.tensor([
-            [1.0,0.0,0.0],
-            [0.0, torch.cos(self.alpha), - torch.sin(self.alpha)], 
-            [0.0, torch.sin(self.alpha), torch.cos(self.alpha)]]), 
-            requires_grad=False) 
-        R_y = Variable(torch.tensor([
-            [torch.cos(self.beta), 0.0, torch.sin(self.beta)], 
-            [0.0,1.0,0.0],
-            [- torch.sin(self.beta), 0.0, torch.cos(self.beta)]]), 
-            requires_grad=False) 
-        R_z = Variable(torch.tensor([
-            [torch.cos(self.gamma), - torch.sin(self.gamma), 0.0], 
-            [torch.sin(self.gamma), torch.cos(self.gamma), 0.0], 
-            [0.0,0.0,1.0]]), 
-            requires_grad=False)
-
-
-        # initialize rotation matrix
-        rotation_matrix = Variable(torch.matmul(R_z, torch.matmul(R_y, R_x)),
-                                        requires_grad=self.rotation_gradient_init)
-        
-        return rotation_matrix
-
-
-    # ALTERNATIVE: calculating gradients with respect to alphas -> update alphas -> neg: invers matmul                          
     def init_angles_(self):
         return torch.rand((self.dimensions, 1), requires_grad=False) * 360
 
@@ -106,11 +80,19 @@ class Perspective_Taker():
             self.bin_momentum_rotation[1] = self.bin_momentum_rotation[0]
             self.bin_momentum_rotation[0] = torch.Tensor(entries.clone().detach())
     
+
     def calc_momentum_roation(self):
         if self.bin_momentum_rotation[0] == None: 
             return torch.zeros(self.num_features, self.num_features)
         else:
             return self.bin_momentum_rotation[1] - self.bin_momentum_rotation[0]
+
+
+    def inverse_rotation_angles(self, angles): 
+        reverse_angles = []
+        for angle in angles:
+            reverse_angles.append(360-angle)
+    
 
 
 
@@ -133,6 +115,7 @@ class Perspective_Taker():
         upd_q = q - learning_rate * grad
         upd_q = upd_q/self.norm_quaternion(upd_q)
         return upd_q
+
     
     def update_quaternion(self, q, grad, learning_rate, momentum):
         mom = momentum*self.calc_momentum_qroation()
@@ -140,6 +123,7 @@ class Perspective_Taker():
         # upd_q = upd_q/self.norm_quaternion(upd_q)
         self.update_momentum_qrotation(q)
         return upd_q
+
 
     def update_momentum_qrotation(self, entries): 
         if self.bin_momentum_rotation[0] == None: 
@@ -149,14 +133,16 @@ class Perspective_Taker():
             self.bin_momentum_rotation[1] = self.bin_momentum_rotation[0]
             self.bin_momentum_rotation[0] = torch.Tensor(entries.clone().detach())
     
+
     def calc_momentum_qroation(self):
         if self.bin_momentum_rotation[0] == None: 
             return torch.zeros(1, self.dimensions+1)
         else:
             return self.bin_momentum_rotation[1] - self.bin_momentum_rotation[0]
 
+
     # def quaternion2euler(self, q): 
-    def qeuler(q, order, epsilon=0):
+    def qeuler(self, q, order, epsilon=0):
         """
         Convert quaternion(s) q to Euler angles.
         Expects a tensor of shape (*, 4), where * denotes any number of dimensions.
@@ -241,10 +227,11 @@ class Perspective_Taker():
         where * denotes any number of dimensions.
         Returns a tensor of shape (*, 3).
         """
-
-        q = torch.stack([q] * self.num_features)
-
         original_shape = list(v.shape)
+
+        q = torch.stack([q] * original_shape[0])
+        # q = torch.stack([q] * self.num_features)
+
         q = q.view(-1, 4)
         v = v.view(-1, 3)
 
@@ -252,6 +239,14 @@ class Perspective_Taker():
         uv = torch.cross(qvec, v, dim=1)
         uuv = torch.cross(qvec, uv, dim=1)
         return (v + 2 * (q[:, :1] * uv + uuv)).view(original_shape)
+
+
+    def inverse_rotation_quaternion(self, q): 
+        q_inv = torch.zeros(4)
+        q_inv[0] = q[0]
+        for i in range(3):
+            q_inv[i+1] = -q[i+1]
+
 
     #################################################################################
     #################### TRANSLATION

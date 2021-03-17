@@ -251,7 +251,7 @@ while obs_count < num_frames:
         state = (init_state[0], init_state[1])
         for i in range(tuning_length):
 
-            x_R = perspective_taker.qrotate(o, Rs[i])
+            x_R = perspective_taker.qrotate(at_inputs[i], Rs[i])
             x = preprocessor.convert_data_AT_to_LSTM(x_R)
 
             # print(f'x_R :{x_R}')

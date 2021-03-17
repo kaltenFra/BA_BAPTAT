@@ -87,25 +87,31 @@ class BinderExMat():
        
         return bm
 
-    def scale_binding_matrix(self, bm):
-        # bm = torch.cat([bm, torch.zeros(1,self.num_observations)])
-              
-        # compute sigmoidal
-        # bm = nn.functional.sigmoid(bm)
+    def scale_binding_matrix(self, bm=None, scale_mode='rcwSM', scale_combo='comp_mult'):
 
-        ## compute seperately
-        bmrw = nn.functional.softmax(bm, dim=1)
-        bmcw = nn.functional.softmax(bm, dim=0)
-        
-        # componentwise multiplication
-        bm = torch.sqrt(torch.mul(bmrw, bmcw))
-        # bm = torch.mul(bmrw, bmcw)
-        # bm = torch.mean(torch.stack([bmrw, bmcw]), 0)
+        if scale_mode == 'sigmoid':
+            # compute sigmoidal
+            bm = nn.functional.sigmoid(bm)
+        elif scale_mode == 'rwSM': 
+            bm = nn.functional.softmax(bm, dim=1)
+        elif scale_mode == 'cwSM': 
+            bm = nn.functional.softmax(bm, dim=0)
+        elif scale_mode == 'rcwSM': 
+            ## compute seperately
+            bmrw = nn.functional.softmax(bm, dim=1)
+            bmcw = nn.functional.softmax(bm, dim=0)
 
-        # compute nested
-        # bm = nn.functional.softmax(bmrw, dim=0)
-        # bm = nn.functional.softmax(bmcw, dim=1)
-       
+            if scale_combo == 'comp_mult':
+                # componentwise multiplication
+                bm = torch.sqrt(torch.mul(bmrw, bmcw))
+            elif scale_combo == 'comp_mean':
+                # componentwise mean
+                bm = torch.mean(torch.stack([bmrw, bmcw]), 0)
+            elif scale_combo == 'nested_rw(cw)':
+                bm = nn.functional.softmax(bmcw, dim=1)
+            elif scale_combo == 'nested_cw(rw)':
+                bm = nn.functional.softmax(bmrw, dim=0)
+                 
         return bm
 
 

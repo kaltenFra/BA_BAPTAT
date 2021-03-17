@@ -1,0 +1,1 @@
+computed binding with row- and column-wise softmax scaling of binding matrix combined by componentwise mean. 

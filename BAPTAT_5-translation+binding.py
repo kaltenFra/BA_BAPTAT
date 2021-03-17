@@ -363,7 +363,7 @@ while obs_count < num_frames:
         state = (init_state[0], init_state[1])
         for i in range(tuning_length):
 
-            x_C = perspective_taker.translate(o, Cs[i])
+            x_C = perspective_taker.translate(at_inputs[i], Cs[i])
             if tune_binding:
                 bm = binder.scale_binding_matrix(Bs[i])
                 x_B = binder.bind(x_C, bm)

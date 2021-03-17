@@ -107,7 +107,10 @@ class BAPTAT_evaluator():
         plt.show()
 
     
-    def plot_binding_matrix(self, binding_matrix, feature_names, title): 
+    def plot_binding_matrix(self, binding_matrix=None, feature_names=None, title=None, observ_order=None): 
+        if observ_order is None: 
+            observ_order = range(self.num_features)
+        
         bm = binding_matrix.detach().numpy()
         fig = plt.figure(figsize=(20,20))
         ax = fig.add_subplot(111)
@@ -117,14 +120,14 @@ class BAPTAT_evaluator():
         ## Adds numbers to plot
         for (i, j), z in np.ndenumerate(bm): 
             # ndenumerate function for generating multidimensional index iterator.
-            # NOTE i is y-coordinate and j is x-coordinate
+            # NOTE i is y-coordinate (row) and j is x-coordinate (column)
             ax.text(j, i, '{:0.3f}'.format(z), ha='center', va='center')
             # adds a text into the plot where i and j are the coordinates
             # and z is the assigned number 
 
         ## adding titles
         ax.set_xticks(np.arange(len(feature_names)))
-        ax.set_xticklabels(feature_names)
+        ax.set_xticklabels([feature_names[i] for i in observ_order])
         ax.set_xlabel('observed input')
         ax.xaxis.set_label_position('top') 
         ax.set_yticks(np.arange(len(feature_names)))

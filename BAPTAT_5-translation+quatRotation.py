@@ -342,7 +342,7 @@ while obs_count < num_frames:
         for i in range(tuning_length):
 
             # perform translation, binding and rotation
-            x_C = perspective_taker.translate(o, Cs[i])
+            x_C = perspective_taker.translate(at_inputs[i], Cs[i])
             x_R = perspective_taker.qrotate(x_C, Rs[i])
             x = preprocessor.convert_data_AT_to_LSTM(x_R)
 
