@@ -185,7 +185,7 @@ while obs_count < num_frames:
         # Update parameters 
         with torch.no_grad():
             ## Normalization factor
-            c_norm = loss.detach()
+            # c_norm = loss.detach()
             
             # Get gradients 
             for i in range(tuning_length+1):

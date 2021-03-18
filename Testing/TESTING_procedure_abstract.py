@@ -17,7 +17,7 @@ class TEST_PROCEDURE(ABC):
         self.num_observations = num_observations
         self.num_dimensions = num_dimensions
 
-        self.preprocessor = Preprocessor(self.num_features, self.num_dimensions)
+        self.preprocessor = Preprocessor(self.num_observations, self.num_features, self.num_dimensions)
 
         print('Initialized test procedure.')
 
@@ -62,6 +62,7 @@ class TEST_PROCEDURE(ABC):
                 amc_paths[i], 
                 sample_nums[i])
             data += [optimal_data]
+            
 
             if modification is not None:
                 modified_data = self.load_data_modified(
@@ -110,8 +111,9 @@ class TEST_PROCEDURE(ABC):
                 name += "_eulrotated"
 
             elif mode == 'translate':
-                # TODO
-                ...
+                data = self.PERSP_TAKER.translate(data, modify)
+                print("Translated", name)
+                name += "_translated"
             else: 
                 print('Unknown modification ', mode, ' for ', name, ' was skipped.')  
 

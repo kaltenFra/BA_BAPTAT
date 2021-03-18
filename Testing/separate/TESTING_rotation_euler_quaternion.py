@@ -9,7 +9,6 @@ import sys
 
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from interfaces.rotation_interface import TEST_ROTATION
-from BAPTAT_3_binding_class import SEP_BINDING
 
 
 class TEST_eulerVSquaternion(TEST_ROTATION): 

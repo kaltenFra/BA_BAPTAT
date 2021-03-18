@@ -6,10 +6,12 @@ class BAPTAT_evaluator():
 
     def __init__(self, 
                  num_frames,
+                 num_observations,
                  num_features, 
                  preprocessor):
         
         self.num_frames = num_frames
+        self.num_observations = num_observations
         self.num_features = num_features
         self.preprocessor = preprocessor
 
@@ -41,7 +43,6 @@ class BAPTAT_evaluator():
         return fig
 
 
-
     def prediction_errors_nxm(self, 
                           observations, 
                           additional_features,
@@ -58,15 +59,6 @@ class BAPTAT_evaluator():
                 pred_t = final_predictions[i]
                 loss = loss_function(pred_t, obs_t[0])
                 prediction_error.append(loss)
-
-        fig = plt.figure()
-        axes = fig.add_axes([0.1, 0.1, 0.8, 0.8]) 
-        axes.plot(prediction_error, 'r')
-        axes.grid(True)
-        axes.set_xlabel('frames')
-        axes.set_ylabel('prediction error')
-        axes.set_title('Prediction error after active tuning')
-        plt.show()
 
         return prediction_error
 
@@ -109,7 +101,7 @@ class BAPTAT_evaluator():
     
     def plot_binding_matrix(self, binding_matrix=None, feature_names=None, title=None, observ_order=None): 
         if observ_order is None: 
-            observ_order = range(self.num_features)
+            observ_order = range(self.num_observations)
         
         bm = binding_matrix.detach().numpy()
         fig = plt.figure(figsize=(20,20))
@@ -139,11 +131,21 @@ class BAPTAT_evaluator():
         return fig
 
     
-    def plot_binding_matrix_nxm(self, binding_matrix, feature_names, num_observed_features, additional_features, title): 
+    def plot_binding_matrix_nxm(self, 
+        binding_matrix, 
+        feature_names, 
+        num_observed_features, 
+        additional_features, 
+        title, 
+        observ_order): 
+
+        if observ_order is None: 
+            observ_order = range(self.num_observations)
+
         bm = binding_matrix.detach().numpy()
         fig = plt.figure(figsize=(20,20))
         ax = fig.add_subplot(111)
-        cax = ax.matshow(bm)            # draws matrix
+        cax = ax.matshow(bm)                        # draws matrix
         cb = fig.colorbar(cax, ax=ax, shrink=0.7)   # draws colorbar
 
         ## Adds numbers to plot
@@ -165,7 +167,8 @@ class BAPTAT_evaluator():
         ax.set_ylabel('input feature')
 
         plt.title(title, size = 12, fontweight='bold')
-        plt.show()
+        # plt.show()
+        return fig
 
 
     def plot_outcast_gradients(self, oc_grads, feature_names, num_observed_features, additional_features, title): 
@@ -185,7 +188,9 @@ class BAPTAT_evaluator():
         axes.set_xlabel('active tuning runs')
         axes.set_ylabel('gradients for entries')
         axes.set_title(title)
-        plt.show()
+        # plt.show()
+        return fig
+
 
     
     def FBE(self, bm, ideal): 
@@ -203,7 +208,6 @@ class BAPTAT_evaluator():
 
     
     def FBE_nxm(self, bm, ideal, additional_features): 
-        
         j = 0
         bm_sq = bm.clone().detach()
         bm_sq = bm_sq[:-1]
@@ -213,8 +217,9 @@ class BAPTAT_evaluator():
             bm_1 = bm_sq[:,:i]
             bm_2 = bm_sq[:,i+1:]
             bm_sq = np.hstack([bm_1, bm_2])
-        
+
         bm_sq = torch.Tensor(bm_sq)
+        
         fbe = self.FBE(bm_sq, torch.Tensor(np.identity(self.num_features)))
         
         for j in additional_features:
@@ -224,6 +229,33 @@ class BAPTAT_evaluator():
                 b += torch.square(bm[i,j])
             fbe += torch.sqrt(a+b)
         return fbe
+
+
+    def clear_nxm_binding_matrix(self, bm, additional_features):
+        j = 0
+        bm_sq = bm.clone().detach()
+        bm_sq = bm_sq[:-1]
+        for i in additional_features:
+            i = i-j
+            j += 1
+            bm_1 = bm_sq[:,:i]
+            bm_2 = bm_sq[:,i+1:]
+            bm_sq = np.hstack([bm_1, bm_2])
+
+        bm_sq = torch.Tensor(bm_sq)
+        return bm_sq
+
+
+    def FBE_nxm_additional_features(self, bm, ideal, additional_features):
+        fbe = 0
+        for j in additional_features:
+            a = torch.square(bm[self.num_features,j]-ideal[self.num_features,j])
+            b = 0
+            for i in range(self.num_features):
+                b += torch.square(bm[i,j])
+            fbe += torch.sqrt(a+b)
+        return fbe
+
 
 
 

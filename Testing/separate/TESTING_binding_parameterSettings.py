@@ -9,7 +9,6 @@ import sys
 
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from interfaces.binding_interface import TEST_BINDING
-from BAPTAT_3_binding_class import SEP_BINDING
 
 
 class TEST_BINDING_PARAMS(TEST_BINDING): 
@@ -108,8 +107,8 @@ def main():
     # sample_nums = [20,20,20]
     # sample_nums = [50,50,50]
     # sample_nums = [15,15,15]
-    sample_nums = [12,12,12]
-    # sample_nums = [12]
+    # sample_nums = [12,12,12]
+    sample_nums = [12]
 
     tested_parameter = 'num_tuning_cycles'
     parameter_values = [1,3]

@@ -18,7 +18,7 @@ class BinderExMat():
 
     def init_binding_matrix_rand_(self):
         # binding_matrix = torch.rand(self.num_features, self.num_features)
-        binding_matrix = torch.rand(self.num_observations, self.num_features)
+        binding_matrix = torch.rand(self.num_features, self.num_observations)
         return binding_matrix
 
 

@@ -73,7 +73,19 @@ class TEST_ROTATION(TEST_PROCEDURE):
         return data
 
 
-    def prepare_inference(self, rotation_type, current_rotation, num_frames, model_path, tuning_length, num_tuning_cycles, at_loss_function, at_loss_parameters, at_learning_rate_binding, at_learning_rate_state, at_momentum_binding):
+    def prepare_inference(self, 
+        rotation_type, 
+        current_rotation, 
+        num_frames, 
+        model_path, 
+        tuning_length, 
+        num_tuning_cycles, 
+        at_loss_function, 
+        at_loss_parameters, 
+        at_learning_rate_rotation, 
+        at_learning_rate_state, 
+        at_momentum_rotaion):
+
         super().prepare_inference(
             self.BAPTAT, 
             num_frames, 
@@ -81,9 +93,9 @@ class TEST_ROTATION(TEST_PROCEDURE):
             tuning_length, 
             num_tuning_cycles, 
             at_loss_function, 
-            at_learning_rate_binding, 
+            at_learning_rate_rotation, 
             at_learning_rate_state, 
-            at_momentum_binding)
+            at_momentum_rotaion)
 
         # set ideal comparision parameters
         if current_rotation is not None: 

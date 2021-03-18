@@ -9,10 +9,9 @@ import sys
 
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from interfaces.rotation_interface import TEST_ROTATION
-from BAPTAT_3_binding_class import SEP_BINDING
 
 
-class TEST_eulerVSquaternion(TEST_ROTATION): 
+class TEST_ROTATION_PARAMS(TEST_ROTATION): 
 
     def __init__(self, num_features, num_observations, num_dimensions):
         experiment_name = "rotation_parameter_settings"
@@ -111,7 +110,7 @@ def main():
     num_observations = 15
     num_input_features = 15
     num_dimensions = 3
-    test = TEST_eulerVSquaternion(
+    test = TEST_ROTATION_PARAMS(
         num_observations, 
         num_input_features, 
         num_dimensions)  

@@ -106,10 +106,6 @@ class SEP_ROTATION():
         # state_optimizer = torch.optim.Adam(init_state, at_learning_rate)
 
         # rotation
-        self.ideal_angle = torch.zeros(self.num_input_dimensions, 1)
-        self.ideal_quat = torch.zeros(1, self.num_input_dimensions)
-        self.ideal_rotation = torch.Tensor(np.identity(self.num_input_dimensions))
-
         self.Rs = []
         self.R_grads = [None] * (self.tuning_length+1)
         self.R_upd = [None] * (self.tuning_length+1)

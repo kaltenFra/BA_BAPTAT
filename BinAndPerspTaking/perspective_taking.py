@@ -320,7 +320,7 @@ class Perspective_Taker():
         return upd_translation_bias
 
 
-    def translate(self,input, translation_bias): 
+    def translate(self, input, translation_bias): 
         return input + translation_bias
 
     
@@ -337,6 +337,10 @@ class Perspective_Taker():
             return torch.zeros(self.dimensions)
         else:
             return self.bin_momentum_translation[1] - self.bin_momentum_translation[0]
+    
+
+    def inverse_translation_bias(self, t): 
+        return t * -1
 
 
 def main(): 

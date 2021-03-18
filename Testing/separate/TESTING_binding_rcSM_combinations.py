@@ -9,7 +9,6 @@ import sys
 
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from interfaces.binding_interface import TEST_BINDING
-from BAPTAT_3_binding_class import SEP_BINDING
 
 
 class TEST_rcwSM_COMBINATIONS(TEST_BINDING): 
