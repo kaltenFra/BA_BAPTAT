@@ -52,6 +52,7 @@ class Perspective_Taker():
 
         # initialize rotation matrix
         rotation_matrix = torch.matmul(R_z, torch.matmul(R_y, R_x))    
+
         return rotation_matrix
 
 
@@ -89,9 +90,12 @@ class Perspective_Taker():
 
 
     def inverse_rotation_angles(self, angles): 
+        print(angles)
         reverse_angles = []
         for angle in angles:
             reverse_angles.append(360-angle)
+        
+        return torch.stack(reverse_angles)
     
 
 
@@ -103,24 +107,35 @@ class Perspective_Taker():
     def init_quaternion(self): 
         # q = torch.rand(1,4)
         q = torch.ones(1,4)
-        q[0,0] = 0.0
+        q[0,0] = 0.8
+        q[0,1] = 0.5
+        q[0,2] = 1.2
+        q[0,3] = 1.5
+        q = self.norm_quaternion(q)
+
         return q
 
 
     def norm_quaternion(self, q): 
-        return torch.sqrt(torch.sum(torch.mul(q,q)))
+        abs = torch.sqrt(torch.sum(torch.mul(q,q)))
+        return torch.div(q, abs)
 
 
     def update_quaternion(self, q, grad, learning_rate):
         upd_q = q - learning_rate * grad
-        upd_q = upd_q/self.norm_quaternion(upd_q)
+        upd_q = self.norm_quaternion(upd_q)
         return upd_q
 
     
     def update_quaternion(self, q, grad, learning_rate, momentum):
         mom = momentum*self.calc_momentum_qroation()
         upd_q = q - learning_rate * grad + mom
-        # upd_q = upd_q/self.norm_quaternion(upd_q)
+        # print(grad)
+        # print(mom)
+        # print(learning_rate)
+        # print(q)
+        # print(upd_q)
+        upd_q = self.norm_quaternion(upd_q)
         self.update_momentum_qrotation(q)
         return upd_q
 
@@ -141,7 +156,6 @@ class Perspective_Taker():
             return self.bin_momentum_rotation[1] - self.bin_momentum_rotation[0]
 
 
-    # def quaternion2euler(self, q): 
     def qeuler(self, q, order, epsilon=0):
         """
         Convert quaternion(s) q to Euler angles.
@@ -190,7 +204,9 @@ class Perspective_Taker():
 
 
     def quaternion2rotmat(self, q):
-        q = q[0]
+        if q.size()[0] == 1: 
+            q = q[0]
+
         # get single quaternion entries 
         w = q[0]
         x = q[1]
@@ -241,11 +257,36 @@ class Perspective_Taker():
         return (v + 2 * (q[:, :1] * uv + uuv)).view(original_shape)
 
 
+    def qmul(self, q, r):
+        """
+        Multiply quaternion(s) q with quaternion(s) r.
+        Expects two equally-sized tensors of shape (*, 4), where * denotes any number of dimensions.
+        Returns q*r as a tensor of shape (*, 4).
+        """
+        assert q.shape[-1] == 4
+        assert r.shape[-1] == 4
+        
+        original_shape = q.shape
+        
+        # Compute outer product
+        terms = torch.bmm(r.view(-1, 4, 1), q.view(-1, 1, 4))
+
+        w = terms[:, 0, 0] - terms[:, 1, 1] - terms[:, 2, 2] - terms[:, 3, 3]
+        x = terms[:, 0, 1] + terms[:, 1, 0] - terms[:, 2, 3] + terms[:, 3, 2]
+        y = terms[:, 0, 2] + terms[:, 1, 3] + terms[:, 2, 0] - terms[:, 3, 1]
+        z = terms[:, 0, 3] - terms[:, 1, 2] + terms[:, 2, 1] + terms[:, 3, 0]
+        return torch.stack((w, x, y, z), dim=1).view(original_shape)
+
+
     def inverse_rotation_quaternion(self, q): 
+        original_shape = q.shape
+        q = q.view(4)
         q_inv = torch.zeros(4)
         q_inv[0] = q[0]
         for i in range(3):
             q_inv[i+1] = -q[i+1]
+        q_inv = q_inv.view(original_shape)
+        return q_inv
 
 
     #################################################################################

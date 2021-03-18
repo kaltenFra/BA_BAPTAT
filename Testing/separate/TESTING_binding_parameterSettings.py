@@ -24,6 +24,12 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
     def perform_experiment(self, sample_nums, changed_parameter, parameter_values): 
 
         ## General parameters
+        # possible loss functions
+        mse = nn.MSELoss()
+        l1Loss = nn.L1Loss()
+        smL1Loss = nn.SmoothL1Loss(reduction='sum')
+        l2Loss = lambda x,y: self.mse(x, y) * (self.num_dimensions * self.num_observations)
+
         # set manually
         modified = 'det'
         model_path = 'CoreLSTM/models/LSTM_46_cell.pt'
@@ -34,6 +40,9 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
         at_learning_rate_binding = 1
         at_learning_rate_state = 0.0
         at_momentum_binding = 0.1
+
+        grad_calc = 'meanOfTunHor'
+        grad_bias = 1.5 
 
         for val in parameter_values: 
             if changed_parameter == 'model_path': 
@@ -52,11 +61,17 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
                 at_learning_rate_state = val
             elif changed_parameter == 'at_momentum_binding': 
                 at_momentum_binding = val  
+            elif changed_parameter == 'grad_calc': 
+                grad_calc = val  
+            elif changed_parameter == 'grad_bias': 
+                grad_bias = val  
             else: 
                 print('Unknown parameter!')
                 break       
 
             print(f'New value for {changed_parameter}: {val}')
+
+            self.BAPTAT.set_weighted_gradient_bias(grad_bias)
 
             results = super().run(
                 changed_parameter+"_"+str(val)+"/",
@@ -69,7 +84,8 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
                 loss_parameters,
                 at_learning_rate_binding, 
                 at_learning_rate_state, 
-                at_momentum_binding
+                at_momentum_binding,
+                grad_calc
             )
 
 
@@ -91,9 +107,9 @@ def main():
     # sample_nums = [100,100,100]
     # sample_nums = [20,20,20]
     # sample_nums = [50,50,50]
-    sample_nums = [15,15,15]
-    # sample_nums = [12,12,12]
-    # sample_nums = [30]
+    # sample_nums = [15,15,15]
+    sample_nums = [12,12,12]
+    # sample_nums = [12]
 
     tested_parameter = 'num_tuning_cycles'
     parameter_values = [1,3]

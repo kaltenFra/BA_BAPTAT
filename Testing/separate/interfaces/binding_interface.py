@@ -133,7 +133,8 @@ class TEST_BINDING(TEST_PROCEDURE):
         loss_parameters,
         at_learning_rate_binding, 
         at_learning_rate_state, 
-        at_momentum_binding):
+        at_momentum_binding, 
+        grad_calculation):
 
         print('*************************************************************************************')
 
@@ -170,7 +171,8 @@ class TEST_BINDING(TEST_PROCEDURE):
                 at_learning_rate_state, 
                 at_momentum_binding)
 
-            at_final_predictions, final_binding_matrix, final_binding_entries = self.BAPTAT.run_inference(observations, new_order, self.reorder)
+            at_final_predictions, final_binding_matrix, final_binding_entries = self.BAPTAT.run_inference(
+                observations, grad_calculation, new_order, self.reorder)
 
             # reorder observations to compare with final predictions
             if new_order is not None:

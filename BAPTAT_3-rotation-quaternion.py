@@ -28,7 +28,7 @@ autograd.set_detect_anomaly(True)
 torch.set_printoptions(precision=9)
 
 ## Define data parameters
-num_frames = 50
+num_frames = 20
 num_input_features = 15
 num_input_dimensions = 3
 preprocessor = Preprocessor(num_input_features, num_input_dimensions)

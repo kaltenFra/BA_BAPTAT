@@ -91,11 +91,11 @@ class BinderExMat():
 
         if scale_mode == 'sigmoid':
             # compute sigmoidal
-            bm = nn.functional.sigmoid(bm)
+            return nn.functional.sigmoid(bm)
         elif scale_mode == 'rwSM': 
-            bm = nn.functional.softmax(bm, dim=1)
+            return nn.functional.softmax(bm, dim=1)
         elif scale_mode == 'cwSM': 
-            bm = nn.functional.softmax(bm, dim=0)
+            return nn.functional.softmax(bm, dim=0)
         elif scale_mode == 'rcwSM': 
             ## compute seperately
             bmrw = nn.functional.softmax(bm, dim=1)
@@ -103,16 +103,22 @@ class BinderExMat():
 
             if scale_combo == 'comp_mult':
                 # componentwise multiplication
-                bm = torch.sqrt(torch.mul(bmrw, bmcw))
+                return torch.sqrt(torch.mul(bmrw, bmcw))
             elif scale_combo == 'comp_mean':
                 # componentwise mean
-                bm = torch.mean(torch.stack([bmrw, bmcw]), 0)
+                return torch.mean(torch.stack([bmrw, bmcw]), 0)
             elif scale_combo == 'nested_rw(cw)':
-                bm = nn.functional.softmax(bmcw, dim=1)
+                return nn.functional.softmax(bmcw, dim=1)
             elif scale_combo == 'nested_cw(rw)':
-                bm = nn.functional.softmax(bmrw, dim=0)
+                return nn.functional.softmax(bmrw, dim=0)
+            else: 
+                print('ERROR: Unknown combination! \nChoose valid combination.')
+                exit()
+        else: 
+            if scale_mode != 'unscaled': 
+                print('ERROR: Unknown mode! Return unscaled binding matrix.')
+            return bm
                  
-        return bm
 
 
     def update_binding_matrix_(self, matrix, gradient, learning_rate, momentum):

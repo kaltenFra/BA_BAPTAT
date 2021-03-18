@@ -28,7 +28,7 @@ autograd.set_detect_anomaly(True)
 torch.set_printoptions(precision=9)
 
 ## Define data parameters
-num_frames = 150
+num_frames = 20
 num_input_features = 15
 num_input_dimensions = 3
 preprocessor = Preprocessor(num_input_features, num_input_dimensions)
@@ -51,6 +51,7 @@ tuning_cycles = 3       # number of tuning cycles in each iteration
 # possible loss functions
 mse = nn.MSELoss()
 l1Loss = nn.L1Loss()
+smL1Loss = nn.SmoothL1Loss()
 l2Loss = lambda x,y: mse(x, y) * (num_input_dimensions * num_input_features)
 
 # define learning parameters 
@@ -101,7 +102,8 @@ core_model.eval()
 ## Rotation matrices 
 # ra = perspective_taker.init_angles_()
 # print(ra)
-ra = torch.Tensor([[309.89], [82.234], [95.765]])
+# ra = torch.Tensor([[309.89], [82.234], [95.765]])
+ra = torch.Tensor([[180.0], [180.0], [180.0]])
 print(ra)
 
 for i in range(tuning_length+1):
@@ -176,9 +178,10 @@ while obs_count < num_frames:
         # Calculate error 
         loss_scale_factor = 2
         # loss = mse(p,x[0])
-        loss = loss_scale_factor * l2Loss(p,x[0]) + mse(p,x[0])
+        # loss = loss_scale_factor * l2Loss(p,x[0]) + mse(p,x[0])
         # loss = (loss_scale_factor * l2Loss(p,x[0]) + 1) * mse(p,x[0])
         # loss = loss_scale_factor * l1Loss(p,x[0]) + mse(p,x[0])
+        loss = smL1Loss(p, x[0])
 
         at_losses.append(loss)
         print(f'frame: {obs_count} cycle: {cycle} loss: {loss}')

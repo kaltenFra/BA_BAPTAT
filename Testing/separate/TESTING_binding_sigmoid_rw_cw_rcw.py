@@ -35,9 +35,12 @@ class TEST_sigVSrwVScwVSrcw(TEST_BINDING):
         at_learning_rate_state = 0.0 
         at_momentum_binding = 0.1
 
+        grad_calc = 'meanOfTunHor'
+        grad_bias = 1.5 
 
         for scaler in scalers:
             self.BAPTAT.set_scale_mode(scaler)
+            self.BAPTAT.set_weighted_gradient_bias(grad_bias)
 
             results = super().run(
                 scaler+'/',
@@ -50,7 +53,8 @@ class TEST_sigVSrwVScwVSrcw(TEST_BINDING):
                 loss_parameters,
                 at_learning_rate_binding, 
                 at_learning_rate_state, 
-                at_momentum_binding
+                at_momentum_binding, 
+                grad_calc
             )
 
         print("Terminated experiment.")
@@ -74,6 +78,7 @@ def main():
     # sample_nums = [50,50,50]
     # sample_nums = [15,15,15]
     sample_nums = [12,12,12]
+    
 
     scalers = ['sigmoid', 'rwSM', 'cwSM', 'rcwSM']
 

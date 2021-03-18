@@ -32,6 +32,7 @@ class SEP_BINDING():
 
         self.scale_mode = 'rcwSM'
         self.scale_combo = 'comp_mult'
+        self.grad_bias = 1.5
 
 
 
@@ -46,6 +47,13 @@ class SEP_BINDING():
     def set_scale_combination(self, combination): 
         self.scale_combo = combination
         print('Reset scale combination: ' + self.scale_combo)
+
+
+    def set_weighted_gradient_bias(self, bias):
+        # bias > 1 => favor recent
+        # bias < 1 => favor earlier
+        self.grad_bias = bias
+        print(f'Reset bias for gradient weighting: {self.grad_bias}')
 
     
     def set_data_parameters_(self, num_frames, num_input_features, num_input_dimesions): 
@@ -121,7 +129,7 @@ class SEP_BINDING():
     ############################################################################
     ##########  INFERENCE  #####################################################
     
-    def run_inference(self, observations, order, reorder):
+    def run_inference(self, observations, grad_calculation, order, reorder):
         
         at_final_predictions = torch.tensor([]).to(self.device)
 
@@ -210,19 +218,20 @@ class SEP_BINDING():
 
                     # print(B_grads[tuning_length])
                     
+                    
                     # Calculate overall gradients 
-                    ### version 1
-                    # grad_B = self.B_grads[0]
-                    ### version 2 / 3
-                    # grad_B = torch.mean(torch.stack(self.B_grads), 0)
-                    ### version 4
-                    # # # # bias > 1 => favor recent
-                    # # # # bias < 1 => favor earlier
-                    bias = 1.5
-                    weighted_grads_B = [None] * (self.tuning_length+1)
-                    for i in range(self.tuning_length+1):
-                        weighted_grads_B[i] = np.power(bias, i) * self.B_grads[i]
-                    grad_B = torch.mean(torch.stack(weighted_grads_B), dim=0)
+                    if grad_calculation == 'lastOfTunHor':
+                        ### version 1
+                        grad_B = self.B_grads[0]
+                    elif grad_calculation == 'meanOfTunHor':
+                        ### version 2 / 3
+                        grad_B = torch.mean(torch.stack(self.B_grads), dim=0)
+                    elif grad_calculation == 'weightedInTunHor':
+                        ### version 4
+                        weighted_grads_B = [None] * (self.tuning_length+1)
+                        for i in range(self.tuning_length+1):
+                            weighted_grads_B[i] = np.power(self.grad_bias, i) * self.B_grads[i]
+                        grad_B = torch.mean(torch.stack(weighted_grads_B), dim=0)
                     
                     # print(f'grad_B: {grad_B}')
                     # print(f'grad_B: {torch.norm(grad_B, 1)}')

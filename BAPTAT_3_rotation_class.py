@@ -33,6 +33,7 @@ class SEP_ROTATION():
         ##   -> Can be changed during experiments 
 
         self.rotation_type = 'qrotate'
+        self.grad_bias = 1.5
 
     
     ############################################################################
@@ -41,6 +42,13 @@ class SEP_ROTATION():
     def set_rotation_type(self, rotation): 
         self.rotation_type = rotation
         print('Reset type of rotation: ' + self.rotation_type)
+
+
+    def set_weighted_gradient_bias(self, bias):
+        # bias > 1 => favor recent
+        # bias < 1 => favor earlier
+        self.grad_bias = bias
+        print(f'Reset bias for gradient weighting: {self.grad_bias}')
 
 
     def set_data_parameters_(self, num_frames, num_input_features, num_input_dimesions): 
@@ -106,15 +114,16 @@ class SEP_ROTATION():
         self.R_grads = [None] * (self.tuning_length+1)
         self.R_upd = [None] * (self.tuning_length+1)
         self.rm_losses = []
-        self.ra_losses = []
+        self.rv_losses = []
 
     
-    def set_comparison_values(self, ideal_quaternion=None, ideal_euler_angle=None, ideal_roation_matrix=None):
+    def set_comparison_values(self, ideal_rotation_values, ideal_roation_matrix):
         self.ideal_rotation = ideal_roation_matrix
         if self.rotation_type == 'qrotate': 
-            self.ideal_quat = ideal_quaternion
+            self.ideal_quat = ideal_rotation_values
+            self.ideal_angle = self.perspective_taker.qeuler(self.ideal_quat, 'xyz')
         elif self.rotation_type == 'eulrotate': 
-            self.ideal_angle = ideal_euler_angle
+            self.ideal_angle = ideal_rotation_values
         else: 
             print(f'ERROR: Received unknown rotation type!\n\trotation type: {self.rotation_type}')
             exit()
@@ -135,7 +144,7 @@ class SEP_ROTATION():
     ############################################################################
     ##########  INFERENCE  #####################################################
     
-    def run_inference(self, observations):
+    def run_inference(self, observations, grad_calculation):
 
         at_final_predictions = torch.tensor([]).to(self.device)
 
@@ -148,10 +157,12 @@ class SEP_ROTATION():
                 quat = rq.clone()
                 quat.requires_grad_()
                 self.Rs.append(quat)
+
         elif self.rotation_type == 'eulrotate':
             ## Rotation euler angles 
             # ra = perspective_taker.init_angles_()
-            ra = torch.Tensor([[309.89], [82.234], [95.765]])
+            # ra = torch.Tensor([[309.89], [82.234], [95.765]])
+            ra = torch.Tensor([[75.0], [6.0], [128.0]])
             print(ra)
 
             for i in range(self.tuning_length+1):
@@ -161,6 +172,7 @@ class SEP_ROTATION():
                     angle.requires_grad_()
                     angles.append(angle)
                 self.Rs.append(angles)
+
         else: 
             print('ERROR: Received unknown rotation type!')
             exit()
@@ -183,7 +195,7 @@ class SEP_ROTATION():
 
         for i in range(self.tuning_length):
             o = observations[self.obs_count]
-            at_inputs = torch.cat((at_inputs, o.reshape(1, self.num_input_features, self.num_input_dimensions)), 0)
+            self.at_inputs = torch.cat((self.at_inputs, o.reshape(1, self.num_input_features, self.num_input_dimensions)), 0)
             self.obs_count += 1
 
             if self.rotation_type == 'qrotate': 
@@ -210,6 +222,7 @@ class SEP_ROTATION():
 
             if self.rotation_type == 'qrotate': 
                 x_R = self.perspective_taker.qrotate(o, self.Rs[-1])
+
             else:
                 rotmat = self.perspective_taker.compute_rotation_matrix_(self.Rs[-1][0], self.Rs[-1][1], self.Rs[-1][2])
                 x_R = self.perspective_taker.rotate(o, rotmat)
@@ -257,18 +270,18 @@ class SEP_ROTATION():
                     # print(self.R_grads[self.tuning_length])
                     
                     # Calculate overall gradients 
-                    ### version 1
-                    # grad_R = self.R_grads[0]
-                    ### version 2 / 3
-                    grad_R = torch.mean(torch.stack(self.R_grads), dim=0)
-                    ### version 4
-                    # # bias > 1 => favor recent
-                    # # bias < 1 => favor earlier
-                    # bias = 1.5
-                    # weighted_grads_R = [None] * (tuning_length+1)
-                    # for i in range(tuning_length+1):
-                    #     weighted_grads_R[i] = np.power(bias, i) * self.R_grads[i]
-                    # grad_R = torch.mean(torch.stack(weighted_grads_R), dim=0)
+                    if grad_calculation == 'lastOfTunHor':
+                        ### version 1
+                        grad_R = self.R_grads[0]
+                    elif grad_calculation == 'meanOfTunHor':
+                        ### version 2 / 3
+                        grad_R = torch.mean(torch.stack(self.R_grads), dim=0)
+                    elif grad_calculation == 'weightedInTunHor':
+                        ### version 4
+                        weighted_grads_R = [None] * (self.tuning_length+1)
+                        for i in range(self.tuning_length+1):
+                            weighted_grads_R[i] = np.power(self.grad_bias, i) * self.R_grads[i]
+                        grad_R = torch.mean(torch.stack(weighted_grads_R), dim=0)
                     
                     # print(f'grad_R: {grad_R}')
 
@@ -279,8 +292,10 @@ class SEP_ROTATION():
                             self.Rs[0], grad_R, self.at_learning_rate, self.r_momentum)
                         print(f'updated quaternion: {upd_R}')
 
-                        # Compute rotation angles
-                        rotang = self.perspective_taker.qeuler(upd_R, 'xyz')
+                        # Compare quaternion values
+                        quat_loss = torch.sum(self.perspective_taker.qmul(self.ideal_quat, upd_R))
+                        print(f'loss of quaternion: {quat_loss}')
+                        self.rv_losses.append(quat_loss)
                         # Compute rotation matrix
                         rotmat = self.perspective_taker.quaternion2rotmat(upd_R)
 
@@ -293,7 +308,7 @@ class SEP_ROTATION():
                         for i in range(self.tuning_length+1):
                             quat = upd_R.clone()
                             quat.requires_grad_()
-                            self.Rs[i].data = quat.data
+                            self.Rs[i] = quat
 
                     else: 
                         # Update parameters in time step t-H with saved gradients 
@@ -301,7 +316,12 @@ class SEP_ROTATION():
                         print(f'updated angles: {upd_R}')
 
                         # Save rotation angles
-                        rotang = upd_R.clone()
+                        rotang = torch.stack(upd_R)
+                        # angles:
+                        ang_diff = rotang - self.ideal_angle
+                        ang_loss = 2 - (torch.cos(torch.deg2rad(ang_diff)) + 1)
+                        print(f'loss of rotation angles: \n  {ang_loss}, \n  with norm {torch.norm(ang_loss)}')
+                        self.rv_losses.append(torch.norm(ang_loss))
                         # Compute rotation matrix
                         rotmat = self.perspective_taker.compute_rotation_matrix_(upd_R[0], upd_R[1], upd_R[2])[0]
                         
@@ -323,10 +343,6 @@ class SEP_ROTATION():
                         # print(Rs[0])
 
                     # Calculate and save rotation losses
-                    # angles:
-                    ang_loss = 2 - (torch.cos(torch.deg2rad(torch.stack(rotang))) + 1)
-                    print(f'loss of rotation angles: \n  {ang_loss}, \n  with norm {torch.norm(ang_loss)}')
-                    self.ra_losses.append(torch.norm(ang_loss))
                     # matrix: 
                     mat_loss = self.mse(self.ideal_rotation, rotmat)
                     print(f'loss of rotation matrix: {mat_loss}')
@@ -360,10 +376,10 @@ class SEP_ROTATION():
                 for i in range(self.tuning_length):
 
                     if self.rotation_type == 'qrotate': 
-                        x_R = self.perspective_taker.qrotate(at_inputs[i], self.Rs[i])
+                        x_R = self.perspective_taker.qrotate(self.at_inputs[i], self.Rs[i])
                     else:
                         rotmat = self.perspective_taker.compute_rotation_matrix_(self.Rs[i][0], self.Rs[i][1], self.Rs[i][2])
-                        x_R = self.perspective_taker.rotate(at_inputs[i], rotmat)
+                        x_R = self.perspective_taker.rotate(self.at_inputs[i], rotmat)
 
                     x = self.preprocessor.convert_data_AT_to_LSTM(x_R)
 
@@ -387,7 +403,7 @@ class SEP_ROTATION():
                     x_R = self.perspective_taker.qrotate(o, self.Rs[-1])
                 else:
                     rotmat = self.perspective_taker.compute_rotation_matrix_(self.Rs[-1][0], self.Rs[-1][1], self.Rs[-1][2])
-                x_R = self.perspective_taker.rotate(o, rotmat)
+                    x_R = self.perspective_taker.rotate(o, rotmat)
 
                 x = self.preprocessor.convert_data_AT_to_LSTM(x_R)
 
@@ -400,7 +416,7 @@ class SEP_ROTATION():
 
             ## Reorganize storage variables            
             # observations
-            self.at_inputs = torch.cat((at_inputs[1:], o.reshape(1, self.num_input_features, self.num_input_dimensions)), 0)
+            self.at_inputs = torch.cat((self.at_inputs[1:], o.reshape(1, self.num_input_features, self.num_input_dimensions)), 0)
             
             # predictions
             at_final_predictions = torch.cat((at_final_predictions, final_prediction.reshape(1,self.input_per_frame)), 0)
@@ -413,21 +429,22 @@ class SEP_ROTATION():
             at_final_predictions = torch.cat((at_final_predictions, self.at_predictions[1].reshape(1,self.input_per_frame)), 0)
 
 
-        final_rotation_values = self.Rs[0].clone().detach()
         # get final rotation matrix
         if self.rotation_type == 'qrotate': 
+            final_rotation_values = self.Rs[0].clone().detach()
             # get final quaternion
             print(f'final quaternion: {final_rotation_values}')
             final_rotation_matrix = self.perspective_taker.quaternion2rotmat(final_rotation_values)
             
         else:
+            final_rotation_values = [self.Rs[0][i].clone().detach() for i in range(self.num_input_dimensions)]
             print(f'final euler angles: {final_rotation_values}')
             final_rotation_matrix = self.perspective_taker.compute_rotation_matrix_(
-                final_rotation_values[0][0], 
-                final_rotation_values[0][1], 
-                final_rotation_values[0][2])
+                final_rotation_values[0], 
+                final_rotation_values[1], 
+                final_rotation_values[2])
         
-        print(f'final rotation matrix: {final_rotation_matrix}')
+        print(f'final rotation matrix: \n{final_rotation_matrix}')
 
         return at_final_predictions, final_rotation_values, final_rotation_matrix
 
@@ -444,7 +461,7 @@ class SEP_ROTATION():
                                                 at_final_predictions, 
                                                 self.mse)
 
-        # TODO: ra_losses bzw rq_losses?????
+        return [pred_errors, self.at_losses, self.rm_losses, self.rv_losses]
 
-        return [pred_errors, self.at_losses, self.rm_losses, self.ra_losses]
+
 

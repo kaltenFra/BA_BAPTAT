@@ -33,11 +33,14 @@ class TEST_rcwSM_COMBINATIONS(TEST_BINDING):
         loss_parameters = [('beta', 0.8), ('reduction', 'sum')]
         at_learning_rate_binding = 1
         at_learning_rate_state = 0.0 
-        at_momentum_binding = 0.0
+        at_momentum_binding = 0.1
 
+        grad_calc = 'meanOfTunHor'
+        grad_bias = 1.5 
 
         for combo in rcwSMcombis:
-            self.BAPTAT.set_scale_mode(combo)
+            self.BAPTAT.set_scale_combination(combo)
+            self.BAPTAT.set_weighted_gradient_bias(grad_bias)
 
             results = super().run(
                 'rcwSM_'+combo+'/',
@@ -50,7 +53,8 @@ class TEST_rcwSM_COMBINATIONS(TEST_BINDING):
                 loss_parameters,
                 at_learning_rate_binding, 
                 at_learning_rate_state, 
-                at_momentum_binding
+                at_momentum_binding, 
+                grad_calc
             )
 
         print("Terminated experiment.")
@@ -75,11 +79,12 @@ def main():
     # sample_nums = [20,20,20]
     # sample_nums = [50,50,50]
     # sample_nums = [15,15,15]
-    sample_nums = [12,12,12]
-    # sample_nums = [12]
+    # sample_nums = [12,12,12]
+    sample_nums = [12]
 
     
-    combinations_of_rcwSM = ['comp_mult', 'comp_mean', 'nested_rw(cw)', 'nested_cw(rw)']
+    combinations_of_rcwSM = ['comp_mult']
+    # combinations_of_rcwSM = ['comp_mult', 'comp_mean', 'nested_rw(cw)', 'nested_cw(rw)']
 
     test.perform_experiment(sample_nums, combinations_of_rcwSM)
 

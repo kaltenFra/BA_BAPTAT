@@ -1,0 +1,11 @@
+,0
+0,"tensor(0.18358952, grad_fn=<MseLossBackward>)"
+1,"tensor(0.18374056, grad_fn=<MseLossBackward>)"
+2,"tensor(0.18365206, grad_fn=<MseLossBackward>)"
+3,"tensor(0.18353845, grad_fn=<MseLossBackward>)"
+4,"tensor(0.18347676, grad_fn=<MseLossBackward>)"
+5,"tensor(0.18341228, grad_fn=<MseLossBackward>)"
+6,"tensor(0.18332049, grad_fn=<MseLossBackward>)"
+7,"tensor(0.18302812, grad_fn=<MseLossBackward>)"
+8,"tensor(0.18236691, grad_fn=<MseLossBackward>)"
+9,"tensor(0.18196282, grad_fn=<MseLossBackward>)"

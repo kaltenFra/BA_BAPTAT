@@ -97,11 +97,17 @@ class TEST_PROCEDURE(ABC):
                 data = self.PERSP_TAKER.qrotate(data, modify)   
                 data = data.view(original_shape) 
 
+                print("Q-Rotated", name)
+                name += "_qrotated"
+
             elif mode == 'eulrotate':
                 data = data.view(num_samples*self.num_observations, self.num_dimensions)
                 rotmat = self.PERSP_TAKER.compute_rotation_matrix_(modify[0], modify[1], modify[2])
                 data = self.PERSP_TAKER.rotate(data, rotmat)   
                 data = data.view(original_shape)  
+                
+                print("Euler-Rotated", name)
+                name += "_eulrotated"
 
             elif mode == 'translate':
                 # TODO
