@@ -89,16 +89,25 @@ class TEST_BINDING(TEST_PROCEDURE):
         feature_names, 
         order):
 
-        names = [
-            'prediction_errors', 'at_loss_history', 'fbe_history', 'determinante_history', 
-            'final_binding_matirx', 'final_binding_neurons_activities']
+        names = ['prediction_errors', 'at_loss_history', 'determinante_history']
 
         results, figures = super().evaluate(self.BAPTAT, observations, final_predictions)
         ## Save figures
-        figures += [self.BAPTAT.evaluator.plot_at_losses(results[2], 'History of binding matrix loss (FBE)')]
-        figures += [self.BAPTAT.evaluator.plot_at_losses(results[3], 'History of binding matrix determinante')]
+        figures += [self.BAPTAT.evaluator.plot_at_losses(results[2], 'History of binding matrix determinante')]
         
         if self.num_features != self.num_observations: 
+            figures += [self.BAPTAT.evaluator.plot_at_losses(
+                results[3][:,0], 
+                'History of binding matrix loss (FBE) for cleared matrix'
+            )]
+            figures += [self.BAPTAT.evaluator.plot_at_losses(
+                results[3][:,1], 
+                'History of binding matrix loss (FBE) for outcast line and additional cloumns'
+            )]
+            figures += [self.BAPTAT.evaluator.plot_at_losses(
+                results[3][:,2], 
+                'History of binding matrix loss (FBE) for whole matrix'
+            )]
             figures += [self.BAPTAT.evaluator.plot_binding_matrix_nxm(
                 final_binding_matrix, 
                 feature_names, 
@@ -122,9 +131,10 @@ class TEST_BINDING(TEST_PROCEDURE):
                 self.BAPTAT.get_additional_features(),
                 'Gradients of outcast line for observed features during inference'
             )]
-            names += ['outcat_line_gradients']
+            names += ['fbe_cleared_history', 'fbe_oc+af_history', 'fbe_whole_history', 'final_binding_matirx', 'final_binding_neurons_activities','outcat_line_gradients']
 
         else:
+            figures += [self.BAPTAT.evaluator.plot_at_losses(results[3], 'History of binding matrix loss (FBE)')]
             figures += [self.BAPTAT.evaluator.plot_binding_matrix(
                 final_binding_matrix, 
                 feature_names, 
@@ -137,6 +147,7 @@ class TEST_BINDING(TEST_PROCEDURE):
                 'Binding matrix entries showing contribution of observed feature to input feature', 
                 order
             )]
+            names += ['fbe_history', 'final_binding_matirx', 'final_binding_neurons_activities']
 
 
         self.save_figures(figures, names)

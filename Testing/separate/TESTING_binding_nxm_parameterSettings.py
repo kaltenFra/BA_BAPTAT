@@ -14,7 +14,7 @@ from interfaces.binding_interface import TEST_BINDING
 class TEST_BINDING_PARAMS(TEST_BINDING): 
 
     def __init__(self, num_observations, num_features, num_dimensions):
-        experiment_name = "binding_parameter_settings"
+        experiment_name = "binding_nxm_parameter_settings"
         super().__init__(num_features, num_observations, num_dimensions, experiment_name)
 
         print('Initialized experiment.')
@@ -46,7 +46,7 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
         nxm_enhancement = 'square'
         nxm_outcast_line_scaler = 0.1
 
-        grad_calc = 'meanOfTunHor'
+        grad_calc = 'weightedInTunHor'
         grad_bias = 1.5 
 
         for val in parameter_values: 
@@ -124,7 +124,7 @@ def main():
     sample_nums = [12]
 
     tested_parameter = 'num_tuning_cycles'
-    parameter_values = [1,3]
+    parameter_values = [3]
 
     # tested_parameter = 'at_loss_function'
     # parameter_values = [nn.SmoothL1Loss(reduction='sum', beta=0.8), nn.MSELoss()]

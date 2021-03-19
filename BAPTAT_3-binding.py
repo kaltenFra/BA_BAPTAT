@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 
 # class imports 
 from BinAndPerspTaking.binding import Binder
-from BinAndPerspTaking.binding_exmat import BinderExMat
+from BinAndPerspTaking.binding_nxm import BINDER_NxM
+# from BinAndPerspTaking.binding_exmat import BinderExMat
 from BinAndPerspTaking.perspective_taking import Perspective_Taker
 from CoreLSTM.core_lstm import CORE_NET
 from Data_Compiler.data_preparation import Preprocessor
@@ -27,11 +28,12 @@ torch.set_printoptions(precision=8)
 
 
 ## Define data parameters
-num_frames = 20
+num_frames = 30
 num_input_features = 15
 num_input_dimensions = 3
-preprocessor = Preprocessor(num_input_features, num_input_dimensions)
-evaluator = BAPTAT_evaluator(num_frames, num_input_features, preprocessor)
+preprocessor = Preprocessor(num_input_features, num_input_features, num_input_dimensions)
+# preprocessor = Preprocessor(num_input_features, num_input_dimensions)
+evaluator = BAPTAT_evaluator(num_frames, num_input_features, num_input_features, preprocessor)
 data_at_unlike_train = False ## Note: sample needs to be changed in the future
 
 # data paths 
@@ -51,7 +53,7 @@ tuning_cycles = 3       # number of tuning cycles in each iteration
 mse = nn.MSELoss()
 l1Loss = nn.L1Loss()
 # smL1Loss = nn.SmoothL1Loss()
-smL1Loss = nn.SmoothL1Loss(reduction='sum')
+smL1Loss = nn.SmoothL1Loss(reduction='sum', beta=0.8)
 # smL1Loss = nn.SmoothL1Loss(beta=2)
 # smL1Loss = nn.SmoothL1Loss(beta=0.5)
 # smL1Loss = nn.SmoothL1Loss(reduction='sum', beta=0.5)
@@ -77,7 +79,8 @@ at_states = []
 # state_optimizer = torch.optim.Adam(init_state, at_learning_rate)
 
 # binding
-binder = BinderExMat(num_features=num_input_features, gradient_init=True)
+# binder = BinderExMat(num_features=num_input_features, gradient_init=True)
+binder = BINDER_NxM(num_observations=num_input_features,num_features=num_input_features, gradient_init=True)
 ideal_binding = torch.Tensor(np.identity(num_input_features))
 
 Bs = []
@@ -93,8 +96,7 @@ bm_dets = []
 
 ## Load data
 observations, feature_names = preprocessor.get_AT_data(data_asf_path, data_amc_path, num_frames)
-print(len(observations))
-exit()    
+
 
 ## Load model
 core_model = CORE_NET()
@@ -223,6 +225,7 @@ while obs_count < num_frames:
             # print(f'grad_B: {grad_B}')
             # print(f'grad_B: {torch.norm(grad_B, 1)}')
             
+            # exit()
 
             # Update parameters in time step t-H with saved gradients 
             upd_B = binder.update_binding_matrix_(Bs[0], grad_B, at_learning_rate, bm_momentum)

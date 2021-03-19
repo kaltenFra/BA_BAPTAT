@@ -35,6 +35,7 @@ class SEP_BINDING():
         self.additional_features = None
         self.nxm_enhance = 'square', 
         self.nxm_last_line_scale = 0.1
+        self.dummie_init = 0.1
 
 
 
@@ -64,14 +65,6 @@ class SEP_BINDING():
     def set_nxm_last_line_scale(self, scale_factor): 
         self.nxm_last_line_scale = scale_factor
         print(f'Scaler for outcast line: {self.nxm_last_line_scale}')
-
-
-    def get_additional_features(self): 
-        return self.additional_features 
-
-    
-    def get_oc_grads(self): 
-        return self.oc_grads 
 
 
     def set_dummie_init_value(self, init_value):
@@ -123,6 +116,14 @@ class SEP_BINDING():
         self.at_loss_function = self.mse
 
         print('Parameters set.')
+
+
+    def get_additional_features(self): 
+        return self.additional_features 
+
+    
+    def get_oc_grads(self): 
+        return self.oc_grads 
 
 
     def init_model_(self, model_path): 
@@ -218,6 +219,7 @@ class SEP_BINDING():
             if self.nxm:
                 bm = bm[:-1]
             x_B = self.binder.bind(o, bm)
+            
             x = self.preprocessor.convert_data_AT_to_LSTM(x_B)
 
             state = (state[0] * state_scaler, state[1] * state_scaler)
@@ -312,7 +314,7 @@ class SEP_BINDING():
                     mat_loss = self.evaluator.FBE(c_bm, self.ideal_binding)
 
                     if self.nxm:
-                        mat_loss += FBE
+                        mat_loss = torch.stack([mat_loss, FBE, mat_loss+FBE])
                     self.bm_losses.append(mat_loss)
                     print(f'loss of binding matrix (FBE): {mat_loss}')
 
@@ -444,11 +446,13 @@ class SEP_BINDING():
                 at_final_predictions, 
                 self.mse
             )
+            self.bm_losses = torch.stack(self.bm_losses)
+
         else:
             pred_errors = self.evaluator.prediction_errors(
                 observations, 
                 at_final_predictions, 
                 self.mse)
 
-        return [pred_errors, self.at_losses, self.bm_losses, self.bm_dets]
+        return [pred_errors, self.at_losses, self.bm_dets, self.bm_losses]
 

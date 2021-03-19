@@ -64,8 +64,8 @@ class SEP_BINDING():
         self.input_per_frame = self.num_input_features * self.num_input_dimensions
         
         self.binder = BinderExMat(num_features=self.num_input_features, gradient_init=True)
-        self.preprocessor = Preprocessor(self.num_input_features, self.num_input_dimensions)
-        self.evaluator = BAPTAT_evaluator(self.num_frames, self.num_input_features, self.preprocessor)
+        self.preprocessor = Preprocessor(self.num_input_features, self.num_input_features, self.num_input_dimensions)
+        self.evaluator = BAPTAT_evaluator(self.num_frames, self.num_input_features, self.num_input_features, self.preprocessor)
         
     
     def set_tuning_parameters_(self, tuning_length, num_tuning_cycles, loss_function, at_learning_rate_binding, at_learning_rate_state, at_momentum_binding): 

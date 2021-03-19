@@ -241,19 +241,25 @@ class BAPTAT_evaluator():
             bm_1 = bm_sq[:,:i]
             bm_2 = bm_sq[:,i+1:]
             bm_sq = np.hstack([bm_1, bm_2])
-
+        
         bm_sq = torch.Tensor(bm_sq)
         return bm_sq
 
 
     def FBE_nxm_additional_features(self, bm, ideal, additional_features):
         fbe = 0
-        for j in additional_features:
-            a = torch.square(bm[self.num_features,j]-ideal[self.num_features,j])
-            b = 0
-            for i in range(self.num_features):
-                b += torch.square(bm[i,j])
-            fbe += torch.sqrt(a+b)
+        oc_fbe = 0
+        for j in range(self.num_observations):
+            if j in additional_features:
+                a = torch.square(bm[self.num_features,j]-ideal[self.num_features,j])
+                b = 0
+                for i in range(self.num_features):
+                    b += torch.square(bm[i,j])
+                fbe += torch.sqrt(a+b)
+            else: 
+                oc_fbe += torch.square(bm[-1,j])
+        fbe += torch.sqrt(oc_fbe)
+        
         return fbe
 
 

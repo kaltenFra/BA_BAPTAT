@@ -40,7 +40,7 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
         at_learning_rate_state = 0.0
         at_momentum_binding = 0.1
 
-        grad_calc = 'meanOfTunHor'
+        grad_calc = 'weightedInTunHor'
         grad_bias = 1.5 
 
         for val in parameter_values: 
@@ -108,7 +108,7 @@ def main():
     # sample_nums = [50,50,50]
     # sample_nums = [15,15,15]
     # sample_nums = [12,12,12]
-    sample_nums = [12]
+    sample_nums = [30]
 
     tested_parameter = 'num_tuning_cycles'
     parameter_values = [1,3]
