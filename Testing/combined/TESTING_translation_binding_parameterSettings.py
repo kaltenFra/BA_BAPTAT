@@ -8,13 +8,13 @@ import pandas as pd
 import sys
 
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
-from interfaces.binding_interface import TEST_BINDING
+from interfaces.combined_interface import TEST_COMBINATIONS
 
 
-class TEST_BINDING_PARAMS(TEST_BINDING): 
+class TEST_COMBI_ALL_PARAMS(TEST_COMBINATIONS): 
 
-    def __init__(self, num_observations, num_features, num_dimensions):
-        experiment_name = "binding_nxm_parameter_settings"
+    def __init__(self, num_features, num_observations, num_dimensions):
+        experiment_name = "combination_t_b_parameter_settings"
         super().__init__(num_features, num_observations, num_dimensions, experiment_name)
 
         print('Initialized experiment.')
@@ -30,28 +30,40 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
         l2Loss = lambda x,y: self.mse(x, y) * (self.num_dimensions * self.num_observations)
 
         # set manually
-        modified = 'det'
+        modification = [
+            ('bind', 'det', None), 
+            ('translate', 'det', range(5))
+        ]
+
         model_path = 'CoreLSTM/models/LSTM_46_cell.pt'
         tuning_length = 10
-        num_tuning_cycles = 1
-        at_loss_function = nn.SmoothL1Loss(reduction='sum', beta=0.8)
-        loss_parameters = [('beta', 0.8), ('reduction', 'sum')]
+        num_tuning_cycles = 3
+        at_loss_function = nn.SmoothL1Loss(reduction='mean', beta=1)
+        loss_parameters = [('beta', 1), ('reduction', 'mean')]
+
         at_learning_rate_binding = 1
+        at_learning_rate_translation = 1
         at_learning_rate_state = 0.0
-        at_momentum_binding = 0.1
 
-        nxm_bool = True
-        index_additional_features = [6]
-        initial_value_dummie_line = 0.1
-        nxm_enhancement = 'square'
-        nxm_outcast_line_scaler = 0.1
+        at_momentum_binding = 0.0
+        at_momentum_translation = 0.0
 
-        grad_calc = 'weightedInTunHor'
-        grad_bias = 1.5 
+        grad_calc_binding = 'weightedInTunHor'
+        grad_calc_translation = 'meanOfTunHor'
+        grad_calculations = [grad_calc_binding, None, grad_calc_translation]
+        
+        grad_bias_binding = 1.5 
+        grad_bias_translation = 1.5 
+        grad_biases = [grad_bias_binding, None, grad_bias_translation]
+
 
         for val in parameter_values: 
             if changed_parameter == 'model_path': 
                 model_path = val
+            elif changed_parameter == 'modification': 
+                modification = val
+            elif changed_parameter == 'rotation_type': 
+                rotation_type = val
             elif changed_parameter == 'tuning_length': 
                 tuning_length = val
             elif changed_parameter == 'num_tuning_cycles': 
@@ -63,42 +75,39 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
                 at_loss_function = nn.SmoothL1Loss(reduction=reduction_val, beta=beta_val)
             elif changed_parameter == 'at_learning_rate_binding': 
                 at_learning_rate_binding = val
+            elif changed_parameter == 'at_learning_rate_translation': 
+                at_learning_rate_translation = val
             elif changed_parameter == 'at_learning_rate_state': 
                 at_learning_rate_state = val
             elif changed_parameter == 'at_momentum_binding': 
                 at_momentum_binding = val  
-            elif changed_parameter == 'grad_calc': 
-                grad_calc = val  
-            elif changed_parameter == 'grad_bias': 
-                grad_bias = val  
+            elif changed_parameter == 'at_momentum_translation': 
+                at_momentum_translation = val 
+            elif changed_parameter == 'grad_calculations': 
+                grad_calculations = val  
+            elif changed_parameter == 'grad_biases': 
+                grad_biases = val  
             else: 
                 print('Unknown parameter!')
                 break       
 
             print(f'New value for {changed_parameter}: {val}')
 
-            self.BAPTAT.set_weighted_gradient_bias(grad_bias)
-
-            if nxm_bool:
-                self.BAPTAT.set_additional_features(index_additional_features)
-                self.BAPTAT.set_dummie_init_value(initial_value_dummie_line)
-                self.BAPTAT.set_nxm_enhancement(nxm_enhancement)
-                self.BAPTAT.set_nxm_last_line_scale(nxm_outcast_line_scaler)
-
+            self.BAPTAT.set_weighted_gradient_biases(grad_biases)  
 
             results = super().run(
                 changed_parameter+"_"+str(val)+"/",
-                modified,
+                modification,
                 sample_nums, 
                 model_path, 
                 tuning_length, 
                 num_tuning_cycles, 
                 at_loss_function,
                 loss_parameters,
-                at_learning_rate_binding, 
+                [at_learning_rate_binding, None, at_learning_rate_translation], 
                 at_learning_rate_state, 
-                at_momentum_binding,
-                grad_calc
+                [at_momentum_binding, None, at_momentum_translation],
+                grad_calculations
             )
 
 
@@ -106,10 +115,10 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
             
       
 def main(): 
-    num_observations = 16
+    num_observations = 15
     num_input_features = 15
     num_dimensions = 3
-    test = TEST_BINDING_PARAMS(
+    test = TEST_COMBI_ALL_PARAMS(
         num_observations, 
         num_input_features, 
         num_dimensions) 
@@ -122,23 +131,32 @@ def main():
     # sample_nums = [50,50,50]
     # sample_nums = [15,15,15]
     # sample_nums = [12,12,12]
-    sample_nums = [12]
+    sample_nums = [30]
 
-    tested_parameter = 'num_tuning_cycles'
-    parameter_values = [3]
+    # tested_parameter = 'num_tuning_cycles'
+    # parameter_values = [1,3]
 
     # tested_parameter = 'at_loss_function'
     # parameter_values = [nn.SmoothL1Loss(reduction='sum', beta=0.8), nn.MSELoss()]
 
     # tested_parameter = 'loss_parameters'
     # parameter_values = [
-    #     [('beta', 0.8),('reduction', 'sum')], 
-    #     [('beta', 1.0),('reduction', 'sum')], 
+    #     [('beta', 0.4),('reduction', 'mean')], 
+    #     [('beta', 0.6),('reduction', 'mean')], 
     #     [('beta', 0.8),('reduction', 'mean')], 
     #     [('beta', 1.0),('reduction', 'mean')]
+    #     [('beta', 1.2),('reduction', 'mean')], 
     # ]
 
-    
+    # tested_parameter = 'at_learning_rate_binding'
+    # parameter_values = [1, 0.1, 0.01]
+
+
+    tested_parameter = 'at_learning_rate_translation'
+    parameter_values = [1, 0.1, 0.01]
+
+
+
 
     test.perform_experiment(sample_nums, tested_parameter, parameter_values)
 

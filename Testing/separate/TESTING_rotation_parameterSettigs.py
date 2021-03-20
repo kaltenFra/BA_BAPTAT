@@ -63,7 +63,8 @@ class TEST_ROTATION_PARAMS(TEST_ROTATION):
             elif changed_parameter == 'at_loss_function': 
                 at_loss_function = val
             elif changed_parameter == 'loss_parameters': 
-                loss_parameters = val
+                [(_, beta_val), (_, reduction_val)] = loss_parameters
+                at_loss_function = nn.SmoothL1Loss(reduction=reduction_val, beta=beta_val)
             elif changed_parameter == 'at_learning_rate_rotation': 
                 at_learning_rate_rotation = val
             elif changed_parameter == 'at_learning_rate_state': 

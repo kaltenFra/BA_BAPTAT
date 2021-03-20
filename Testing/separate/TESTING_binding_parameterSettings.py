@@ -46,6 +46,8 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
         for val in parameter_values: 
             if changed_parameter == 'model_path': 
                 model_path = val
+            elif changed_parameter == 'modified': 
+                modified = val
             elif changed_parameter == 'tuning_length': 
                 tuning_length = val
             elif changed_parameter == 'num_tuning_cycles': 
@@ -53,7 +55,8 @@ class TEST_BINDING_PARAMS(TEST_BINDING):
             elif changed_parameter == 'at_loss_function': 
                 at_loss_function = val
             elif changed_parameter == 'loss_parameters': 
-                loss_parameters = val
+                [(_, beta_val), (_, reduction_val)] = loss_parameters
+                at_loss_function = nn.SmoothL1Loss(reduction=reduction_val, beta=beta_val)
             elif changed_parameter == 'at_learning_rate_binding': 
                 at_learning_rate_binding = val
             elif changed_parameter == 'at_learning_rate_state': 

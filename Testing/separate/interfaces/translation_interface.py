@@ -110,7 +110,7 @@ class TEST_TRANSLATION(TEST_PROCEDURE):
         figures += [self.BAPTAT.evaluator.plot_at_losses(results[2], 'History of translation loss (MSE)')]
 
 
-        names = ['prediction_errors', 'at_loss_history', 'transba_loss_history', 'final_rotation_values']
+        names = ['prediction_errors', 'at_loss_history', 'transba_loss_history', 'final_translation_values']
 
         self.save_figures(figures, names)
         self.save_results_to_csv(results, names)
@@ -125,6 +125,7 @@ class TEST_TRANSLATION(TEST_PROCEDURE):
     def run(self, 
         experiment_dir,
         modified,
+        translation_range,
         sample_nums, 
         model_path, 
         tuning_length, 
@@ -147,6 +148,7 @@ class TEST_TRANSLATION(TEST_PROCEDURE):
 
         data = self.load_data(
             modify=modified, 
+            trans_range=translation_range,
             sample_nums=sample_nums)
 
 
@@ -179,7 +181,7 @@ class TEST_TRANSLATION(TEST_PROCEDURE):
 
             at_final_predictions, final_translation_values = self.BAPTAT.run_inference(observations, grad_calculation)
 
-            # rerotate observations to compare with final predictions 
+            # retranslate observations to compare with final predictions 
             if new_translation is not None:
                 self.PERSP_TAKER.translate(observations, self.retranslate)
             

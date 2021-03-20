@@ -45,20 +45,41 @@ class SEP_TRANSLATION():
         print(f'Reset bias for gradient weighting: {self.grad_bias}')
 
 
-    def set_data_parameters_(self, num_frames, num_input_features, num_input_dimesions): 
+    def set_data_parameters_(self, 
+        num_frames, 
+        num_input_features, 
+        num_input_dimesions): 
+
         ## Define data parameters
         self.num_frames = num_frames
         self.num_input_features = num_input_features
         self.num_input_dimensions = num_input_dimesions
         self.input_per_frame = self.num_input_features * self.num_input_dimensions
 
-        self.perspective_taker = Perspective_Taker(self.num_input_features, self.num_input_dimensions,
-                                                   rotation_gradient_init=True, translation_gradient_init=True)
-        self.preprocessor = Preprocessor(self.num_input_features, self.num_input_dimensions)
-        self.evaluator = BAPTAT_evaluator(self.num_frames, self.num_input_features, self.preprocessor)
+        self.perspective_taker = Perspective_Taker(
+            self.num_input_features, 
+            self.num_input_dimensions,
+            rotation_gradient_init=True, 
+            translation_gradient_init=True)
+        
+        self.preprocessor = Preprocessor(
+            self.num_input_features, 
+            self.num_input_dimensions)
+
+        self.evaluator = BAPTAT_evaluator(
+            self.num_frames, 
+            self.num_input_features, 
+            self.preprocessor)
         
     
-    def set_tuning_parameters_(self, tuning_length, num_tuning_cycles, loss_function, at_learning_rate_translation, at_learning_rate_state, at_momentum_translation): 
+    def set_tuning_parameters_(self, 
+        tuning_length, 
+        num_tuning_cycles, 
+        loss_function, 
+        at_learning_rate_translation, 
+        at_learning_rate_state, 
+        at_momentum_translation):
+
         ## Define tuning parameters 
         self.tuning_length = tuning_length          # length of tuning horizon 
         self.tuning_cycles = num_tuning_cycles      # number of tuning cycles in each iteration 
@@ -85,6 +106,8 @@ class SEP_TRANSLATION():
         self.core_model.load_state_dict(torch.load(model_path))
         self.core_model.eval()
 
+        print('Model loaded.')
+
 
     def init_inference_tools(self):
         ## Define tuning variables
@@ -97,7 +120,6 @@ class SEP_TRANSLATION():
 
         # state 
         self.at_states = []
-        # state_optimizer = torch.optim.Adam(init_state, at_learning_rate)
 
         # translation
         self.Cs = []
@@ -291,17 +313,25 @@ class SEP_TRANSLATION():
 
             ## Reorganize storage variables            
             # observations
-            self.at_inputs = torch.cat((self.at_inputs[1:], o.reshape(1, self.num_input_features, self.num_input_dimensions)), 0)
+            self.at_inputs = torch.cat(
+                (self.at_inputs[1:], 
+                o.reshape(1, self.num_input_features, self.num_input_dimensions)), 0)
             
             # predictions
-            at_final_predictions = torch.cat((at_final_predictions, final_prediction.reshape(1,self.input_per_frame)), 0)
-            self.at_predictions = torch.cat((self.at_predictions[1:], new_prediction.reshape(1,self.input_per_frame)), 0)
+            at_final_predictions = torch.cat(
+                (at_final_predictions, 
+                final_prediction.reshape(1,self.input_per_frame)), 0)
+            self.at_predictions = torch.cat(
+                (self.at_predictions[1:], 
+                new_prediction.reshape(1,self.input_per_frame)), 0)
 
         # END active tuning
             
         # store rest of predictions in at_final_predictions
         for i in range(self.tuning_length): 
-            at_final_predictions = torch.cat((at_final_predictions, self.at_predictions[1].reshape(1,self.input_per_frame)), 0)
+            at_final_predictions = torch.cat(
+                (at_final_predictions, 
+                self.at_predictions[1].reshape(1,self.input_per_frame)), 0)
 
 
         # get final translation bias

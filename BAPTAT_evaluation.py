@@ -5,13 +5,16 @@ import numpy as np
 class BAPTAT_evaluator():
 
     def __init__(self, 
-                 num_frames,
-                 num_observations,
-                 num_features, 
-                 preprocessor):
+                 num_frames=None,
+                 num_observations=None,
+                 num_features=15, 
+                 preprocessor=None):
         
         self.num_frames = num_frames
-        self.num_observations = num_observations
+        if num_observations is None: 
+            self.num_observations = num_features
+        else:
+            self.num_observations = num_observations
         self.num_features = num_features
         self.preprocessor = preprocessor
 

@@ -148,9 +148,13 @@ class Preprocessor():
 
 # class Preprocessor_nxm():
     
-    def __init__(self, num_observations, num_features, num_dimensions):
+    def __init__(self, num_observations=None, num_features=15, num_dimensions=3):
         self._num_features = num_features
-        self.num_observations = num_observations
+        if num_observations is None: 
+            self.num_observations = num_features
+        else:
+            self.num_observations = num_observations
+            
         self._num_dimensions = num_dimensions
 
 

@@ -125,15 +125,25 @@ class TEST_PROCEDURE(ABC):
         return data.gather(1, order.unsqueeze(1).expand(data.shape))
 
 
-    def prepare_inference(self, baptat, num_frames, model_path, tuning_length, num_tuning_cycles, at_loss_function, at_learning_rate_binding, at_learning_rate_state, at_momentum_binding):
+    def prepare_inference(self, 
+        baptat, 
+        num_frames, 
+        model_path, 
+        tuning_length, 
+        num_tuning_cycles, 
+        at_loss_function, 
+        at_learning_rate, 
+        at_learning_rate_state, 
+        at_momentum):
+
         baptat.init_model_(model_path)
         baptat.set_tuning_parameters_(
             tuning_length, 
             num_tuning_cycles, 
             at_loss_function, 
-            at_learning_rate_binding, 
+            at_learning_rate, 
             at_learning_rate_state, 
-            at_momentum_binding
+            at_momentum
         )
         baptat.init_inference_tools()
 
@@ -183,6 +193,11 @@ class TEST_PROCEDURE(ABC):
         for i in range(len(results)):
             df = pd.DataFrame(results[i])  
             df.to_csv(self.result_path + names[i] + '.csv')
+
+
+    def save_results_to_pt(self, results, names): 
+        for i in range(len(results)):
+            torch.save(results[i], self.result_path + names[i] + '.pt')
   
 
     def run(): 
