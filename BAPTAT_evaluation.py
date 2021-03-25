@@ -9,6 +9,8 @@ class BAPTAT_evaluator():
                  num_observations=None,
                  num_features=15, 
                  preprocessor=None):
+
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         self.num_frames = num_frames
         if num_observations is None: 
@@ -26,8 +28,8 @@ class BAPTAT_evaluator():
         prediction_error = []
         for i in range(self.num_frames-1):
             with torch.no_grad():
-                obs_t = self.preprocessor.convert_data_AT_to_LSTM(observations[i+1])
-                pred_t = final_predictions[i]
+                obs_t = self.preprocessor.convert_data_AT_to_LSTM(observations[i+1]).to(self.device)
+                pred_t = final_predictions[i].to(self.device)
                 loss = loss_function(pred_t, obs_t[0])
                 prediction_error.append(loss)
 
@@ -58,8 +60,8 @@ class BAPTAT_evaluator():
             with torch.no_grad():
                 obs = observations[i+1]
                 obs = [obs[i] for i in range(num_observed_features) if (i not in additional_features)]
-                obs_t = self.preprocessor.convert_data_AT_to_LSTM(torch.stack(obs))
-                pred_t = final_predictions[i]
+                obs_t = self.preprocessor.convert_data_AT_to_LSTM(torch.stack(obs)).to(self.device)
+                pred_t = final_predictions[i].to(self.device)
                 loss = loss_function(pred_t, obs_t[0])
                 prediction_error.append(loss)
 
@@ -221,9 +223,11 @@ class BAPTAT_evaluator():
             bm_2 = bm_sq[:,i+1:]
             bm_sq = np.hstack([bm_1, bm_2])
 
-        bm_sq = torch.Tensor(bm_sq)
+        bm_sq = torch.Tensor(bm_sq).to(self.device)
         
-        fbe = self.FBE(bm_sq, torch.Tensor(np.identity(self.num_features)))
+        fbe = self.FBE(
+            bm_sq, 
+            torch.Tensor(np.identity(self.num_features)).to(self.device))
         
         for j in additional_features:
             a = torch.square(bm[self.num_features,j]-ideal[self.num_features,j])
@@ -245,7 +249,7 @@ class BAPTAT_evaluator():
             bm_2 = bm_sq[:,i+1:]
             bm_sq = np.hstack([bm_1, bm_2])
         
-        bm_sq = torch.Tensor(bm_sq)
+        bm_sq = torch.Tensor(bm_sq).to(self.device)
         return bm_sq
 
 

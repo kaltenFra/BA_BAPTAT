@@ -9,30 +9,36 @@ import sys
 
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from Testing.TESTING_procedure_abstract import TEST_PROCEDURE
-from BAPTAT_5_combination_class import COMBI_BAPTAT
+# from BAPTAT_5_combination_class_gestalten_decay import COMBI_BAPTAT_GESTALTEN
+# from BAPTAT_5_combination_class_gestalten_clamp import COMBI_BAPTAT_GESTALTEN
+from BAPTAT_5_combination_class_gestalten import COMBI_BAPTAT_GESTALTEN
 from BinAndPerspTaking.perspective_taking import Perspective_Taker
 
 
 
-class TEST_COMBINATIONS(TEST_PROCEDURE): 
+class TEST_COMBINATIONS_GESTALTEN(TEST_PROCEDURE): 
 
     def __init__(self, num_features, num_observations, num_dimensions, experiment_name):
         super().__init__(num_features, num_observations, num_dimensions)
         experiment_path = "D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT/Grafics/CombinedBindingRuns/"+experiment_name+'/'
         super().create_trial_directory(experiment_path)
         self.trial_path = self.result_path
-        self.BAPTAT = COMBI_BAPTAT()
+        self.BAPTAT = COMBI_BAPTAT_GESTALTEN()
         self.PERSP_TAKER = Perspective_Taker(num_observations, num_dimensions, False, False)
         self.do_binding = False
         self.do_rotation = False
         self.rotation_type = None
         self.do_translation = False
+        
         print('Initialized test environment.')
 
 
     def load_data(self, modifications=None, sample_nums=None):
         amc_paths, asf_paths = self.get_data_paths()
         self.init_modification_params()
+        if self.gestalten: 
+            dim_spare = self.num_dimensions
+            self.num_dimensions = 3
 
         data_modification = []
         for action, modify, specify in modifications: 
@@ -46,7 +52,7 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
                         print('Randomly modified order of observed features: ', modification)
 
                     elif modify == 'det': 
-                        swap_pairs = [(2,4), (8, 10)]
+                        swap_pairs = [(2,4), (6, 10)]
                         modification = np.array(range(self.num_observations))
                         for i,j in swap_pairs:
                             modification[i], modification[j] = modification[j], modification[i]
@@ -128,13 +134,21 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
                     modification = None
                     self.new_translation = None
                     self.retranslate = torch.zeros(self.num_dimensions)
+                    print(self.num_dimensions)
             
             else: 
                 print('Received unknown modification. Skipped.')
 
+        if self.gestalten: 
+            self.num_dimensions = dim_spare
+        
         if data_modification == []:
             data_modification = None
         data = self.load_data_all(asf_paths, amc_paths, sample_nums, data_modification)
+
+        # dt = torch.cat([f for (_, f, _) in data])
+        # self.render_gestalt(dt)
+        # exit()
         
         return data
 
@@ -166,49 +180,42 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
             at_momenta)
 
         # set ideal comparision parameters
-        ideal_binding = None
-        ideal_rotation = None
-        ideal_translation = None
         # binding
         # NOTE: ideal matrix is always identity, bc then the FBE and determinant can be calculated => provide reorder
-        if self.do_binding:
-            ideal_binding = torch.Tensor(np.identity(self.num_features))
+        ideal_binding = torch.Tensor(np.identity(self.num_features))
         
         # rotation
-        if self.do_rotation:
-            if current_rotation is not None: 
-                rerot = self.rerotate
-                rerot_matrix = self.rerotation_matrix
-            else: 
-                if rotation_type == 'qrotate':
-                    rerot = torch.zeros(1,4)
-                    rerot[0,0] = 1.0
-                elif rotation_type == 'eulrotate':
-                    rerot = torch.zeros(3).view(3,1)
-                rerot_matrix = torch.Tensor(np.identity(self.num_dimensions))
+        if current_rotation is not None: 
+            rerot = self.rerotate
+            rerot_matrix = self.rerotation_matrix
+        else: 
+            if rotation_type == 'qrotate':
+                rerot = torch.zeros(1,4)
+                rerot[0,0] = 1.0
+            elif rotation_type == 'eulrotate':
+                rerot = torch.zeros(3).view(3,1)
+            rerot_matrix = torch.Tensor(np.identity(3))
+            # rerot_matrix = torch.Tensor(np.identity(self.num_dimensions))
 
-            ideal_rotation = (rerot, rerot_matrix)
+        ideal_rotation = (rerot, rerot_matrix)
 
         # translation
-        if self.do_translation:
-            if current_translation is not None: 
-                retrans = self.retranslate
-            else: 
-                retrans = torch.zeros(self.num_dimensions)
+        if current_translation is not None: 
+            retrans = self.retranslate
+        else: 
+            retrans = torch.zeros(3)
+            # retrans = torch.zeros(self.num_dimensions)
 
-            ideal_translation = retrans        
+        ideal_translation = retrans        
         
         self.BAPTAT.set_comparison_values(ideal_binding, ideal_rotation, ideal_translation)
         
         info_string = ''
-        if self.do_binding:
-            info_string += f' - modification of binding order: \t{self.new_order}\n\n'
-        if self.do_rotation:
-            info_string += f' - modification of body rotation with {rotation_type} by \n\t{self.new_rotation if current_rotation is not None else None}\n'
-            info_string += f' - optimally infered rotation: \n\t{rerot}\n\n'
-        if self.do_translation:
-            info_string += f' - modification of body translation: {self.new_translation if current_translation is not None else None}\n'
-            info_string += f' - optimally infered translation: \n\t{retrans}\n\n'
+        info_string += f' - modification of binding order: \t{self.new_order}\n\n'
+        info_string += f' - modification of body rotation with {rotation_type} by \n\t{self.new_rotation if current_rotation is not None else None}\n'
+        info_string += f' - optimally infered rotation: \n\t{rerot}\n\n'
+        info_string += f' - modification of body translation: {self.new_translation if current_translation is not None else None}\n'
+        info_string += f' - optimally infered translation: \n\t{retrans}\n\n'
         info_string = self.construct_info_string(info_string, at_loss_parameters)
         info_string += f' - learning rates:\n' 
         info_string += f'\t> binding: \t\t{self.BAPTAT.at_learning_rate_binding}\n'
@@ -247,7 +254,6 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
         if self.do_binding: 
             fig_names += ['determinante_history']
             csv_names += ['determinante_history']
-
             figures += [self.BAPTAT.evaluator.plot_at_losses(results[res_i], 'History of binding matrix determinante')]
             res_i += 1
         
@@ -292,7 +298,8 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
                 fig_names += [
                     'fbe_cleared_history', 'fbe_oc+af_history', 'fbe_whole_history', 
                     'final_binding_matirx', 'final_binding_neurons_activities','outcat_line_gradients']
-                
+                csv_names += ['fbe_cleared_history', 'fbe_oc+af_history', 'fbe_whole_history', 'outcat_line_gradients']
+
             else:
                 figures += [self.BAPTAT.evaluator.plot_at_losses(results[res_i], 'History of binding matrix loss (FBE)')]
                 res_i += 1
@@ -314,11 +321,6 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
             
             res_names += ['final_binding_matirx', 'final_binding_neurons_activities']
             pt_results += [final_binding_matrix, final_binding_entries]
-        else:
-            for i in range(len(results)): 
-                if i>=res_i:
-                    results[i-2] = results[i]
-            results = results[:-2]
 
         if self.do_rotation:
             figures += [self.BAPTAT.evaluator.plot_at_losses(results[res_i], 'History of rotation matrix loss (MSE)')]
@@ -330,11 +332,6 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
             csv_names += ['rotmat_loss_history', 'rotval_loss_history']
             res_names += ['final_rotation_values', 'final_rotation_matrix']
             pt_results += [final_rotation_values, final_rotation_matrix]
-        else: 
-            for i in range(len(results)): 
-                if i>=res_i:
-                    results[i-2] = results[i]
-            results = results[:-2]
         
         if self.do_translation:
             figures += [self.BAPTAT.evaluator.plot_at_losses(results[res_i], 'History of translation loss (MSE)')]
@@ -344,6 +341,7 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
             csv_names += ['transba_loss_history']
             res_names += ['final_translation_values']
             pt_results += [final_translation_values]
+
 
         self.save_figures(figures, fig_names)
         self.save_results_to_csv(results, csv_names)
@@ -434,7 +432,7 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
                     new_order, 
                     self.reorder)
 
-            self.render(at_final_predictions.view(num_frames, self.num_features, self.num_dimensions))
+            self.render_gestalt(at_final_predictions.view(num_frames, self.num_features, 7))
 
             # reorder observations to compare with final predictions
             if new_order is not None:

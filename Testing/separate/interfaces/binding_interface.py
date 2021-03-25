@@ -215,6 +215,8 @@ class TEST_BINDING(TEST_PROCEDURE):
             at_final_predictions, final_binding_matrix, final_binding_entries = self.BAPTAT.run_inference(
                 observations, grad_calculation, new_order, self.reorder)
 
+            self.render(at_final_predictions.view(num_frames, self.num_features, self.num_dimensions))
+
             # reorder observations to compare with final predictions
             if new_order is not None:
                 observations = self.order(observations, self.reorder)

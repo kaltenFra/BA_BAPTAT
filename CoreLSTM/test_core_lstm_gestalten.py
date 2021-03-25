@@ -89,8 +89,8 @@ class LSTM_Tester():
         plt.show()
 
     
-    def test(self, num_predictions, model_path, test_input, test_target, train_window):
-        model = CORE_NET(input_size=105, hidden_layer_size=15)
+    def test(self, num_predictions, model_path, test_input, test_target, train_window, hidden_num):
+        model = CORE_NET(input_size=105, hidden_layer_size=hidden_num)
         model.load_state_dict(torch.load(model_path))
         model.eval()
         print(model)
@@ -114,7 +114,7 @@ def main():
     loss_function=nn.MSELoss()
 
     # Init tools
-    prepro = Preprocessor(num_features, num_dimensions)
+    prepro = Preprocessor(num_features=num_features, num_dimensions=num_dimensions)
     tester = LSTM_Tester(loss_function)
 
     # Init tools

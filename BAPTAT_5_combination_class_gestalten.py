@@ -16,7 +16,7 @@ from Data_Compiler.data_preparation import Preprocessor
 from BAPTAT_evaluation import BAPTAT_evaluator
 
 
-class COMBI_BAPTAT():
+class COMBI_BAPTAT_GESTALTEN():
 
     def __init__(self):
         ## General parameters 
@@ -106,6 +106,17 @@ class COMBI_BAPTAT():
         self.num_input_dimensions = num_input_dimesions
         self.input_per_frame = self.num_input_features * self.num_input_dimensions
         self.nxm = (self.num_observations != self.num_input_features)
+
+        # fixed gestalten definition. could be changed to flexible.
+        if self.num_input_dimensions == 7:
+            self.gestalten = True
+            self.num_spatial_dimensions = self.num_input_dimensions-4
+            self.num_pos = self.num_spatial_dimensions
+            self.num_dir = self.num_spatial_dimensions
+            self.num_mag = 1
+        else:
+            self.num_spatial_dimensions = self.num_input_dimensions
+
         
         self.binder = BINDER_NxM(
             num_observations=self.num_observations, 
@@ -114,7 +125,7 @@ class COMBI_BAPTAT():
 
         self.perspective_taker = Perspective_Taker(
             self.num_input_features, 
-            self.num_input_dimensions,
+            self.num_spatial_dimensions,
             rotation_gradient_init=True, 
             translation_gradient_init=True)
 
@@ -172,7 +183,9 @@ class COMBI_BAPTAT():
 
     def init_model_(self, model_path): 
         ## Load model
-        self.core_model = CORE_NET()
+        # self.core_model = CORE_NET()
+        self.core_model = CORE_NET(input_size=105, hidden_layer_size=210)
+        # self.core_model = CORE_NET(input_size=105, hidden_layer_size=15)
         self.core_model.load_state_dict(torch.load(model_path))
         self.core_model.eval()
         self.core_model.to(self.device)
@@ -216,29 +229,26 @@ class COMBI_BAPTAT():
     
     def set_comparison_values(self, ideal_binding, ideal_rotation, ideal_translation):
         # binding
-        if ideal_binding is not None:
-            self.ideal_binding = ideal_binding.to(self.device)
-            if self.nxm:
-                self.ideal_binding = self.binder.ideal_nxm_binding(
-                    self.additional_features, self.ideal_binding).to(self.device)
+        self.ideal_binding = ideal_binding.to(self.device)
+        if self.nxm:
+            self.ideal_binding = self.binder.ideal_nxm_binding(
+                self.additional_features, self.ideal_binding).to(self.device)
 
         # rotation
-        self.identity_matrix = torch.Tensor(np.identity(self.num_input_dimensions))
-        if ideal_rotation is not None:
-            (ideal_rotation_values, self.ideal_rotation) = ideal_rotation
-            self.ideal_rotation = self.ideal_rotation.to(self.device)
-            if self.rotation_type == 'qrotate': 
-                self.ideal_quat = ideal_rotation_values.to(self.device)
-                self.ideal_angle = self.perspective_taker.qeuler(self.ideal_quat, 'xyz').to(self.device)
-            elif self.rotation_type == 'eulrotate': 
-                self.ideal_angle = ideal_rotation_values.to(self.device)
-            else: 
-                print(f'ERROR: Received unknown rotation type!\n\trotation type: {self.rotation_type}')
-                exit()
+        self.identity_matrix = torch.Tensor(np.identity(self.num_spatial_dimensions))
+        (ideal_rotation_values, self.ideal_rotation) = ideal_rotation
+        self.ideal_rotation = self.ideal_rotation.to(self.device)
+        if self.rotation_type == 'qrotate': 
+            self.ideal_quat = ideal_rotation_values.to(self.device)
+            self.ideal_angle = self.perspective_taker.qeuler(self.ideal_quat, 'xyz').to(self.device)
+        elif self.rotation_type == 'eulrotate': 
+            self.ideal_angle = ideal_rotation_values.to(self.device)
+        else: 
+            print(f'ERROR: Received unknown rotation type!\n\trotation type: {self.rotation_type}')
+            exit()
 
         # translation
-        if ideal_translation is not None:
-            self.ideal_translation = ideal_translation.to(self.device)
+        self.ideal_translation = ideal_translation.to(self.device)
 
 
     ############################################################################
@@ -296,7 +306,7 @@ class COMBI_BAPTAT():
 
                 for i in range(self.tuning_length+1):
                     angles = []
-                    for j in range(self.num_input_dimensions):
+                    for j in range(self.num_spatial_dimensions):
                         angle = ra[j].clone().to(self.device)
                         angle.requires_grad_()
                         angles.append(angle)
@@ -355,6 +365,13 @@ class COMBI_BAPTAT():
                 x_B = self.binder.bind(o, bm)
             else: 
                 x_B = o
+
+            if self.gestalten:
+                mag = x_B[:, -1].view(self.num_observations, 1)
+                x_B = x_B[:, :-1]
+                x_B = torch.cat([
+                    x_B[:, :self.num_spatial_dimensions], 
+                    x_B[:, self.num_spatial_dimensions:]])
             ###########################  ROTATION  ################################
             if do_rotation:
                 if self.rotation_type == 'qrotate': 
@@ -365,11 +382,18 @@ class COMBI_BAPTAT():
                     x_R = self.perspective_taker.rotate(x_B, rotmat)
             else: 
                 x_R = x_B
+
+            if self.gestalten:
+                dir = x_R[-self.num_observations:, :]
+                x_R = x_R[:-self.num_observations, :]
             ###########################  TRANSLATION  #############################
             if do_translation:
                 x_C = self.perspective_taker.translate(x_R, self.Cs[i])
             else:
                 x_C = x_R
+
+            if self.gestalten: 
+                x_C = torch.cat([x_C, dir, mag], dim=1)
             #######################################################################
             
             x = self.preprocessor.convert_data_AT_to_LSTM(x_C)
@@ -378,7 +402,7 @@ class COMBI_BAPTAT():
             new_prediction, state = self.core_model(x, state)  
             self.at_states.append(state)
             self.at_predictions = torch.cat((self.at_predictions, new_prediction.reshape(1,self.input_per_frame)), 0)
-
+        
         ############################################################################
         ##########  ACTIVE TUNING ##################################################
 
@@ -399,7 +423,14 @@ class COMBI_BAPTAT():
                     bm = bm[:-1]
                 x_B = self.binder.bind(o, bm)    
             else: 
-                x_B = o        
+                x_B = o   
+
+            if self.gestalten:
+                mag = x_B[:, -1].view(self.num_observations, 1)
+                x_B = x_B[:, :-1]
+                x_B = torch.cat([
+                    x_B[:, :self.num_spatial_dimensions], 
+                    x_B[:, self.num_spatial_dimensions:]])
             ###########################  ROTATION  ################################
             if do_rotation:
                 if self.rotation_type == 'qrotate': 
@@ -410,11 +441,18 @@ class COMBI_BAPTAT():
                     x_R = self.perspective_taker.rotate(x_B, rotmat)
             else: 
                 x_R = x_B
+    
+            if self.gestalten:
+                dir = x_R[-self.num_observations:, :]
+                x_R = x_R[:-self.num_observations, :]
             ###########################  TRANSLATION  #############################
             if do_translation:
                 x_C = self.perspective_taker.translate(x_R, self.Cs[-1])
             else: 
                 x_C = x_R
+
+            if self.gestalten: 
+                x_C = torch.cat([x_C, dir, mag], dim=1)
             #######################################################################
 
             x = self.preprocessor.convert_data_AT_to_LSTM(x_C)
@@ -467,8 +505,7 @@ class COMBI_BAPTAT():
                         
                         # Update parameters in time step t-H with saved gradients 
                         grad_B = grad_B.to(self.device)
-                        upd_B = self.binder.decay_update_binding_matrix_(
-                        # upd_B = self.binder.update_binding_matrix_(
+                        upd_B = self.binder.update_binding_matrix_(
                             self.Bs[0], grad_B, self.at_learning_rate_binding, self.bm_momentum)
 
                         # Compare binding matrix to ideal matrix
@@ -684,6 +721,13 @@ class COMBI_BAPTAT():
                         x_B = self.binder.bind(self.at_inputs[i], bm)
                     else:
                         x_B = self.at_inputs[i]
+
+                    if self.gestalten:
+                        mag = x_B[:, -1].view(self.num_observations, 1)
+                        x_B = x_B[:, :-1]
+                        x_B = torch.cat([
+                            x_B[:, :self.num_spatial_dimensions], 
+                            x_B[:, self.num_spatial_dimensions:]])
                     ###########################  ROTATION  ################################
                     if do_rotation:
                         if self.rotation_type == 'qrotate': 
@@ -694,11 +738,18 @@ class COMBI_BAPTAT():
                             x_R = self.perspective_taker.rotate(x_B, rotmat)
                     else: 
                         x_R = x_B
+                
+                    if self.gestalten:
+                        dir = x_R[-self.num_observations:, :]
+                        x_R = x_R[:-self.num_observations, :]
                     ###########################  TRANSLATION  #############################
                     if do_translation:
                         x_C = self.perspective_taker.translate(x_R, self.Cs[i])
                     else:
                         x_C = x_R
+
+                    if self.gestalten: 
+                        x_C = torch.cat([x_C, dir, mag], dim=1)
                     #######################################################################
 
                     x = self.preprocessor.convert_data_AT_to_LSTM(x_C)
@@ -733,6 +784,13 @@ class COMBI_BAPTAT():
                     x_B = self.binder.bind(o, bm)
                 else:
                     x_B = o
+
+                if self.gestalten:
+                    mag = x_B[:, -1].view(self.num_observations, 1)
+                    x_B = x_B[:, :-1]
+                    x_B = torch.cat([
+                        x_B[:, :self.num_spatial_dimensions], 
+                        x_B[:, self.num_spatial_dimensions:]])
                 ###########################  ROTATION  ################################
                 if do_rotation: 
                     if self.rotation_type == 'qrotate': 
@@ -743,11 +801,18 @@ class COMBI_BAPTAT():
                         x_R = self.perspective_taker.rotate(x_B, rotmat)
                 else: 
                     x_R = x_B
+
+                if self.gestalten:
+                    dir = x_R[-self.num_observations:, :]
+                    x_R = x_R[:-self.num_observations, :]
                 ###########################  TRANSLATION  #############################
                 if do_translation: 
                     x_C = self.perspective_taker.translate(x_R, self.Cs[-1])
                 else: 
                     x_C = x_R
+
+                if self.gestalten: 
+                    x_C = torch.cat([x_C, dir, mag], dim=1)
                 #######################################################################
 
                 x = self.preprocessor.convert_data_AT_to_LSTM(x_C)

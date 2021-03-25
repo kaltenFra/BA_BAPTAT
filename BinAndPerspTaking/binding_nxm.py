@@ -10,6 +10,7 @@ class BINDER_NxM():
     """
 
     def __init__(self, num_observations, num_features, gradient_init):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.gradient_init = gradient_init
         self.num_features = num_features
         self.num_observations = num_observations
@@ -119,22 +120,40 @@ class BINDER_NxM():
         binding_matrix = matrix - learning_rate * gradient + mom
         return binding_matrix
 
+
+    def decay_update_binding_matrix_(self, matrix, gradient, learning_rate, momentum):
+        mom = momentum*self.calc_momentum()
+        decay = self.get_decay(matrix)
+        lmd = 0.001
+        binding_matrix = matrix - learning_rate * gradient - torch.mul(decay, matrix) - torch.mul(decay, gradient) + mom
+        # binding_matrix = matrix - learning_rate * gradient - decay + mom
+        # binding_matrix = matrix - learning_rate * gradient - torch.mul(decay, matrix) + mom
+        # binding_matrix = matrix - learning_rate * gradient - torch.div(decay, gradient) + mom
+        # binding_matrix = matrix - learning_rate * gradient - torch.mul(decay, matrix) + torch.mul(decay, gradient) + mom
+        # binding_matrix = matrix - learning_rate * gradient - torch.mul(decay, matrix) + torch.mul(lmd*decay, gradient) + mom
+        # binding_matrix = matrix - learning_rate * gradient - torch.div(torch.mul(decay, matrix), gradient) + mom
+        # binding_matrix = matrix - learning_rate * gradient - torch.mul(decay, torch.div(matrix, gradient)) + mom
+
+        # binding_matrix = self.clampBM(binding_matrix)
+
+        return binding_matrix
+
         
     def update_momentum(self, entries): 
         if self.bin_momentum[0] == None: 
-            self.bin_momentum[0] = torch.Tensor(entries.copy())
-            self.bin_momentum[1] = torch.Tensor(entries.copy())
+            self.bin_momentum[0] = torch.Tensor(entries.copy()).to(self.device)
+            self.bin_momentum[1] = torch.Tensor(entries.copy()).to(self.device)
         else: 
             self.bin_momentum[1] = self.bin_momentum[0]
-            self.bin_momentum[0] = torch.Tensor(entries.copy())
+            self.bin_momentum[0] = torch.Tensor(entries.copy()).to(self.device)
 
     
     def calc_momentum(self):
         if self.bin_momentum[0] == None: 
             if self.nxm: 
-                return torch.zeros(self.num_features+1, self.num_observations)
+                return torch.zeros(self.num_features+1, self.num_observations).to(self.device)
             else:
-                return torch.zeros(self.num_features, self.num_features)
+                return torch.zeros(self.num_features, self.num_features).to(self.device)
         else:
             return self.bin_momentum[1] - self.bin_momentum[0]
 
@@ -142,4 +161,28 @@ class BINDER_NxM():
     def bind(self, input, bind_matrix):
         binded = torch.matmul(bind_matrix, input)
         return binded
+
+
+    def clampBM(self, bm): 
+        # m = torch.median(bm)
+        m = torch.mean(bm)
+        std = torch.std(bm)
+        return torch.clamp(bm, min=m-3*std, max=m+3*std)
+
+
+    def get_decay(self, bm): 
+        lmd = 0.001
+        l2 = torch.sum(torch.mul(bm, bm))
+        # print(l2)
+        # lambda_b = torch.sigmoid(bm/l2) * lmd
+        # lambda_b = torch.sigmoid(bm/(l2*lmd))
+        # lambda_b = torch.sigmoid(bm/(l2*lmd)) * lmd
+        # lambda_b = torch.sigmoid(l2*bm) * lmd
+        lambda_b = torch.sigmoid(bm) * lmd * l2
+        # print(lambda_b)
+
+        return lambda_b
+
+
+
 

@@ -15,8 +15,8 @@ class LSTM_Trainer():
     ## General parameters 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    def __init__(self, loss_function, learning_rate, momentum, l2_penality, batch_size):
-        self._model = CORE_NET(input_size=105, hidden_layer_size=15)
+    def __init__(self, loss_function, learning_rate, momentum, l2_penality, batch_size, hidden_num):
+        self._model = CORE_NET(input_size=105, hidden_layer_size=hidden_num)
         self.batch_size = batch_size
         self._loss_function = loss_function
         self._optimizer = torch.optim.SGD(self._model.parameters(), lr=learning_rate, momentum=momentum, weight_decay=l2_penality)
@@ -34,8 +34,10 @@ class LSTM_Trainer():
         num_batches = len(train_sequence)
         seq_size = len(train_sequence[0][0])
         closed_loop = 0
-        closed_loop_sizes = [2,5,10]
-        closed_loop_epsilon = 0.00005
+        closed_loop_sizes = [2,5,10,20]
+        # closed_loop_epsilon = 0.0005
+        closed_loop_epsilon = 0.00000001
+        # closed_loop_epsilon = 0.0000005
         prev_ep_loss = 100000000000
         # print(num_batches)
         # print(seq_size)
@@ -210,7 +212,7 @@ class LSTM_Trainer():
                 closed_loop = closed_loop_sizes[0]
                 print(f'New loop length: {closed_loop}')
                 closed_loop_sizes = closed_loop_sizes[1:]
-                closed_loop_epsilon *= 1
+                closed_loop_epsilon *= 0.1
                 print(f'New loop epsilon: {closed_loop_epsilon}')
                 # print(closed_loop)
                 # print(closed_loop_sizes)
@@ -380,29 +382,33 @@ class LSTM_Trainer():
 def main():
     # LSTM parameters
     frame_samples = 1000
-    train_window = 10
+    train_window = 20
     testing_size = 100
     num_features = 15
     num_dimensions = 3
+    hidden_num = 210
 
     # Training parameters
-    epochs = 10000
+    epochs = 2000
     mse=nn.MSELoss()
-    # loss_function=nn.MSELoss()
-    loss_function= lambda x, y: mse(x, y) * (num_features * 7)
-    loss_function=nn.L1Loss()
+    loss_function=nn.MSELoss()
+    # loss_function= lambda x, y: mse(x, y) * (num_features * 7)
+    # loss_function= lambda x, y: mse(x, y) * (num_features * 3)
+    # loss_function=nn.L1Loss()
+    # loss_function=nn.SmoothL1Loss()
     learning_rate=0.1
     momentum=0.1
-    l2_penality=0.1
+    l2_penality=0.01
 
     # Init tools
-    prepro = Preprocessor(num_features, num_dimensions)
+    prepro = Preprocessor(num_features=num_features, num_dimensions=num_dimensions)
     trainer = LSTM_Trainer(
         loss_function, 
         learning_rate, 
         momentum, 
         l2_penality, 
-        train_window
+        train_window, 
+        hidden_num
     )
     tester = LSTM_Tester(loss_function)
     tester_1 = LSTM_Tester(mse)
@@ -410,7 +416,7 @@ def main():
     # Init tools
     data_asf_path = 'Data_Compiler/S35T07.asf'
     data_amc_path = 'Data_Compiler/S35T07.amc'
-    model_save_path = 'CoreLSTM/models/LSTM_59_gestalten.pt'
+    model_save_path = 'CoreLSTM/models/LSTM_73_gestalten.pt'
 
     # Preprocess data
     io_seq, dt_train, dt_test = prepro.get_LSTM_data_gestalten(
@@ -427,8 +433,8 @@ def main():
     test_input = dt_train[0,-train_window:]
 
     # Test LSTM
-    tester.test(testing_size, model_save_path, test_input, dt_test, train_window)
-    tester_1.test(testing_size, model_save_path, test_input, dt_test, train_window)
+    tester.test(testing_size, model_save_path, test_input, dt_test, train_window,hidden_num)
+    tester_1.test(testing_size, model_save_path, test_input, dt_test, train_window, hidden_num)
     
 
 

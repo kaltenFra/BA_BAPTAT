@@ -47,27 +47,31 @@ class SEP_TRANSLATION():
 
     def set_data_parameters_(self, 
         num_frames, 
+        num_observations,
         num_input_features, 
         num_input_dimesions): 
 
         ## Define data parameters
         self.num_frames = num_frames
+        self.num_observations = num_observations
         self.num_input_features = num_input_features
         self.num_input_dimensions = num_input_dimesions
         self.input_per_frame = self.num_input_features * self.num_input_dimensions
 
         self.perspective_taker = Perspective_Taker(
-            self.num_input_features, 
+            self.num_observations,
             self.num_input_dimensions,
             rotation_gradient_init=True, 
             translation_gradient_init=True)
-        
+
         self.preprocessor = Preprocessor(
+            self.num_observations,
             self.num_input_features, 
             self.num_input_dimensions)
 
         self.evaluator = BAPTAT_evaluator(
             self.num_frames, 
+            self.num_observations,
             self.num_input_features, 
             self.preprocessor)
         
@@ -105,6 +109,7 @@ class SEP_TRANSLATION():
         self.core_model = CORE_NET()
         self.core_model.load_state_dict(torch.load(model_path))
         self.core_model.eval()
+        self.core_model.to(self.device)
 
         print('Model loaded.')
 
@@ -129,7 +134,7 @@ class SEP_TRANSLATION():
 
     
     def set_comparison_values(self, ideal_translation):
-        self.ideal_translation = ideal_translation
+        self.ideal_translation = ideal_translation.to(self.device)
 
 
     ############################################################################
@@ -140,10 +145,10 @@ class SEP_TRANSLATION():
         at_final_predictions = torch.tensor([]).to(self.device)
 
         tb = self.perspective_taker.init_translation_bias_()
-        print(tb)
+        # print(tb)
 
         for i in range(self.tuning_length+1):
-            transba = tb.clone()
+            transba = tb.clone().to(self.device)
             transba.requires_grad = True
             self.Cs.append(transba)
 
@@ -153,8 +158,11 @@ class SEP_TRANSLATION():
         state_scaler = 0.95
 
         # init state
-        at_h = torch.zeros(1, self.core_model.hidden_size).requires_grad_().to(self.device)
-        at_c = torch.zeros(1, self.core_model.hidden_size).requires_grad_().to(self.device)
+        at_h = torch.zeros(1, self.core_model.hidden_size).to(self.device)
+        at_c = torch.zeros(1, self.core_model.hidden_size).to(self.device)
+
+        at_h.requires_grad = True
+        at_c.requires_grad = True
 
         init_state = (at_h, at_c)
         state = (init_state[0], init_state[1])
@@ -164,7 +172,7 @@ class SEP_TRANSLATION():
         ##########  FORWARD PASS  ##################################################
 
         for i in range(self.tuning_length):
-            o = observations[self.obs_count]
+            o = observations[self.obs_count].to(self.device)
             self.at_inputs = torch.cat((self.at_inputs, o.reshape(1, self.num_input_features, self.num_input_dimensions)), 0)
             self.obs_count += 1
 
@@ -182,7 +190,7 @@ class SEP_TRANSLATION():
 
         while self.obs_count < self.num_frames:
             # TODO folgendes evtl in function auslagern
-            o = observations[self.obs_count]
+            o = observations[self.obs_count].to(self.device)
             self.obs_count += 1
 
             x_C = self.perspective_taker.translate(o, self.Cs[-1])
@@ -204,11 +212,11 @@ class SEP_TRANSLATION():
                 # Calculate error 
                 loss = self.at_loss(p, x[0])
 
-                self.at_losses.append(loss)
-                print(f'frame: {self.obs_count} cycle: {cycle} loss: {loss}')
-
                 # Propagate error back through tuning horizon 
                 loss.backward(retain_graph = True)
+
+                self.at_losses.append(loss.clone().detach().cpu().numpy())
+                print(f'frame: {self.obs_count} cycle: {cycle} loss: {loss}')
 
                 # Update parameters 
                 with torch.no_grad():
@@ -237,6 +245,7 @@ class SEP_TRANSLATION():
                     # print(f'grad_C: {grad_C}')
 
                     # Update parameters in time step t-H with saved gradients 
+                    grad_C = grad_C.to(self.device)
                     upd_C = self.perspective_taker.update_translation_bias_(self.Cs[0], grad_C, self.at_learning_rate, self.c_momentum)
                     
                     # print(upd_C)
@@ -259,8 +268,8 @@ class SEP_TRANSLATION():
                     # print(self.Cs[0])
 
                     # Initial state
-                    g_h = at_h.grad
-                    g_c = at_c.grad
+                    g_h = at_h.grad.to(self.device)
+                    g_c = at_c.grad.to(self.device)
 
                     upd_h = init_state[0] - self.at_learning_rate_state * g_h
                     upd_c = init_state[1] - self.at_learning_rate_state * g_c
@@ -280,18 +289,20 @@ class SEP_TRANSLATION():
                 # Update init state???
                 init_state = (at_h, at_c)
                 state = (init_state[0], init_state[1])
+                self.at_predictions = torch.tensor([]).to(self.device)
                 for i in range(self.tuning_length):
 
                     x_C = self.perspective_taker.translate(self.at_inputs[i], self.Cs[i])
                     x = self.preprocessor.convert_data_AT_to_LSTM(x_C)
 
                     state = (state[0] * state_scaler, state[1] * state_scaler)
-                    self.at_predictions[i], state = self.core_model(x, state)
-
+                    upd_prediction, state = self.core_model(x, state)
+                    self.at_predictions = torch.cat((self.at_predictions, upd_prediction.reshape(1,self.input_per_frame)), 0)
+                    
                     # for last tuning cycle update initial state to track gradients 
                     if cycle==(self.tuning_cycles-1) and i==0: 
                         with torch.no_grad():
-                            final_prediction = self.at_predictions[0].clone().detach()
+                            final_prediction = self.at_predictions[0].clone().detach().to(self.device)
 
                         at_h = state[0].clone().detach().requires_grad_()
                         at_c = state[1].clone().detach().requires_grad_()

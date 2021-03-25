@@ -1,4 +1,5 @@
 import pandas as pd   
+import numpy as np
 import matplotlib.pyplot as plt
 import abc 
 from abc import ABC, abstractmethod
@@ -9,6 +10,7 @@ import os
 import sys
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from Data_Compiler.data_preparation import Preprocessor
+from Data_Compiler.skeleton_renderer import SKEL_RENDERER
 
 class TEST_PROCEDURE(ABC): 
 
@@ -16,8 +18,14 @@ class TEST_PROCEDURE(ABC):
         self.num_features = num_features
         self.num_observations = num_observations
         self.num_dimensions = num_dimensions
+        self.gestalten = False
 
         self.preprocessor = Preprocessor(self.num_observations, self.num_features, self.num_dimensions)
+        # fixed. could be changed to flexible. 
+        if self.num_dimensions == 7:
+            self.gestalten = True
+
+        self.skelrenderer = SKEL_RENDERER()
 
         print('Initialized test procedure.')
 
@@ -44,18 +52,24 @@ class TEST_PROCEDURE(ABC):
         data_asf_path += ['Data_Compiler/S35T07.asf']
 
         # inference test data
-        data_amc_path += ['Data_Compiler/S07T02.amc']
-        data_asf_path += ['Data_Compiler/S07T02.asf']
+        data_amc_path += ['Data_Compiler/S05T01.amc']
+        data_asf_path += ['Data_Compiler/S05T01.asf']
+
+        data_amc_path += ['Data_Compiler/S06T01.amc']
+        data_asf_path += ['Data_Compiler/S06T01.asf']
 
         data_amc_path += ['Data_Compiler/S08T02.amc']
         data_asf_path += ['Data_Compiler/S08T02.asf']
+
+        data_amc_path += ['Data_Compiler/S07T02.amc']
+        data_asf_path += ['Data_Compiler/S07T02.asf']
 
         return data_amc_path, data_asf_path
 
     
     def load_data_all(self, asf_paths, amc_paths, sample_nums, modification):         
         data = []
-
+        
         for i in range(len(sample_nums)): 
             optimal_data= self.load_data_original(
                 asf_paths[i], 
@@ -63,7 +77,6 @@ class TEST_PROCEDURE(ABC):
                 sample_nums[i])
             data += [optimal_data]
             
-
             if modification is not None:
                 modified_data = self.load_data_modified(
                     asf_paths[i], 
@@ -72,11 +85,27 @@ class TEST_PROCEDURE(ABC):
                     modification)
                 data += [modified_data]
 
+
+        if len(set(sample_nums)) != 1:
+            maxLen = max(sample_nums)
+            for i in range(len(data)):
+                (n, d, f) = data[i]
+                if d.shape[0] < maxLen:
+                    mult_factor = np.ceil(np.array([maxLen/d.shape[0]]))
+                    mult_factor = mult_factor.astype(int)
+                    for k in range(mult_factor[0]):
+                        d = torch.cat([d,d])
+                    d_new = d[:maxLen]
+                    data[i] = (n, d_new, f)
+
         return data
 
 
     def load_data_original(self, asf_path, amc_path, num_samples): 
-        observations, joint_names = self.preprocessor.get_AT_data(asf_path, amc_path, num_samples)
+        if self.gestalten:
+            observations, joint_names = self.preprocessor.get_AT_data_gestalten(asf_path, amc_path, num_samples)
+        else:
+            observations, joint_names = self.preprocessor.get_AT_data(asf_path, amc_path, num_samples)
         name, _ = asf_path.split('.')
         _ , name = name.split('/')
         return (name, observations, joint_names)
@@ -147,6 +176,15 @@ class TEST_PROCEDURE(ABC):
         )
         baptat.init_inference_tools()
 
+    
+    def init_modification_params(self):
+        self.new_order = None
+        self.reorder = None
+        self.new_rotation = None
+        self.rerotate = None
+        self.new_translation = None
+        self.retranslate = None
+
 
     def construct_info_string(self, info_string, loss_parameters):
         info_string += f' - number of observations: \t{self.BAPTAT.num_input_features}\n'
@@ -166,6 +204,7 @@ class TEST_PROCEDURE(ABC):
 
     def evaluate(self, baptat, observations, final_predictions):
         results = baptat.get_result_history(observations, final_predictions)
+        self.save_results_to_pt([final_predictions], ['final_predictions'])
         figures = []
         figures += [baptat.evaluator.plot_prediction_errors(results[0])]
         figures += [baptat.evaluator.plot_at_losses(results[1], 'History of overall losses during active tuning')]
@@ -180,7 +219,8 @@ class TEST_PROCEDURE(ABC):
     def save_figures(self, figures, names):
         for i in range(len(figures)): 
             fig = figures[i]
-            fig.savefig(self.result_path + names[i] + '.png', bbox_inches='tight', dpi=150)
+            fig.savefig(self.result_path + names[i] + '.png')
+            # fig.savefig(self.result_path + names[i] + '.png', bbox_inches='tight', dpi=150)
 
     
     def write_to_file(self, string, path):
@@ -198,6 +238,18 @@ class TEST_PROCEDURE(ABC):
     def save_results_to_pt(self, results, names): 
         for i in range(len(results)):
             torch.save(results[i], self.result_path + names[i] + '.pt')
+
+    
+    def render(self, data):
+        self.skelrenderer.render(data, None, None, False)
+    
+    
+    def render_gestalt(self, data):
+        pos = data[:,:,:3]
+        dir = data[:,:,3:6]
+        mag = data[:,:,-1]
+
+        self.skelrenderer.render(pos, dir, mag, True)
   
 
     def run(): 

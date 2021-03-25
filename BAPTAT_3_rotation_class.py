@@ -53,30 +53,31 @@ class SEP_ROTATION():
 
     def set_data_parameters_(self, 
         num_frames, 
-        num_observtions,
+        num_observations,
         num_input_features, 
         num_input_dimesions): 
 
         ## Define data parameters
         self.num_frames = num_frames
-        self.num_observations = num_observtions
+        self.num_observations = num_observations
         self.num_input_features = num_input_features
         self.num_input_dimensions = num_input_dimesions
         self.input_per_frame = self.num_input_features * self.num_input_dimensions
 
         self.perspective_taker = Perspective_Taker(
-            self.num_observtions,
-            self.num_input_features, 
+            self.num_observations,
             self.num_input_dimensions,
             rotation_gradient_init=True, 
             translation_gradient_init=True)
 
         self.preprocessor = Preprocessor(
+            self.num_observations,
             self.num_input_features, 
             self.num_input_dimensions)
 
         self.evaluator = BAPTAT_evaluator(
             self.num_frames, 
+            self.num_observations,
             self.num_input_features, 
             self.preprocessor)
         
@@ -114,6 +115,7 @@ class SEP_ROTATION():
         self.core_model = CORE_NET()
         self.core_model.load_state_dict(torch.load(model_path))
         self.core_model.eval()
+        self.core_model.to(self.device)
 
         print('Model loaded.')
 
@@ -140,27 +142,28 @@ class SEP_ROTATION():
 
     
     def set_comparison_values(self, ideal_rotation_values, ideal_rotation_matrix):
-        self.ideal_rotation = ideal_rotation_matrix
+        self.identity_matrix = torch.Tensor(np.identity(self.num_input_dimensions))
+        self.ideal_rotation = ideal_rotation_matrix.to(self.device)
         if self.rotation_type == 'qrotate': 
-            self.ideal_quat = ideal_rotation_values
-            self.ideal_angle = self.perspective_taker.qeuler(self.ideal_quat, 'xyz')
+            self.ideal_quat = ideal_rotation_values.to(self.device)
+            self.ideal_angle = self.perspective_taker.qeuler(self.ideal_quat, 'xyz').to(self.device)
         elif self.rotation_type == 'eulrotate': 
-            self.ideal_angle = ideal_rotation_values
+            self.ideal_angle = ideal_rotation_values.to(self.device)
         else: 
             print(f'ERROR: Received unknown rotation type!\n\trotation type: {self.rotation_type}')
             exit()
 
 
     def set_ideal_euler_angles(self, angles): 
-        self.ideal_angles = angles        
+        self.ideal_angles = angles.to(self.device)     
 
 
     def set_ideal_quaternion(self, quaternion): 
-        self.ideal_quat = quaternion
+        self.ideal_quat = quaternion.to(self.device)
 
     
     def set_ideal_roation_matrix(self, matrix):
-        self.ideal_rotation = matrix
+        self.ideal_rotation = matrix.to(self.device)
 
 
     ############################################################################
@@ -173,10 +176,10 @@ class SEP_ROTATION():
         if self.rotation_type == 'qrotate': 
             ## Rotation quaternion 
             rq = self.perspective_taker.init_quaternion()
-            print(rq)
+            # print(rq)
 
             for i in range(self.tuning_length+1):
-                quat = rq.clone()
+                quat = rq.clone().to(self.device)
                 quat.requires_grad_()
                 self.Rs.append(quat)
 
@@ -205,8 +208,11 @@ class SEP_ROTATION():
         state_scaler = 0.95
 
         # init state
-        at_h = torch.zeros(1, self.core_model.hidden_size).requires_grad_().to(self.device)
-        at_c = torch.zeros(1, self.core_model.hidden_size).requires_grad_().to(self.device)
+        at_h = torch.zeros(1, self.core_model.hidden_size).to(self.device)
+        at_c = torch.zeros(1, self.core_model.hidden_size).to(self.device)
+
+        at_h.requires_grad = True
+        at_c.requires_grad = True
 
         init_state = (at_h, at_c)
         state = (init_state[0], init_state[1])
@@ -216,7 +222,7 @@ class SEP_ROTATION():
         ##########  FORWARD PASS  ##################################################
 
         for i in range(self.tuning_length):
-            o = observations[self.obs_count]
+            o = observations[self.obs_count].to(self.device)
             self.at_inputs = torch.cat((self.at_inputs, o.reshape(1, self.num_input_features, self.num_input_dimensions)), 0)
             self.obs_count += 1
 
@@ -239,7 +245,7 @@ class SEP_ROTATION():
 
         while self.obs_count < self.num_frames:
             # TODO folgendes evtl in function auslagern
-            o = observations[self.obs_count]
+            o = observations[self.obs_count].to(self.device)
             self.obs_count += 1
 
             if self.rotation_type == 'qrotate': 
@@ -267,11 +273,11 @@ class SEP_ROTATION():
                 # Calculate error 
                 loss = self.at_loss(p, x[0])
 
-                self.at_losses.append(loss)
-                print(f'frame: {self.obs_count} cycle: {cycle} loss: {loss}')
-
                 # Propagate error back through tuning horizon 
                 loss.backward(retain_graph = True)
+
+                self.at_losses.append(loss.clone().detach().cpu().numpy())
+                print(f'frame: {self.obs_count} cycle: {cycle} loss: {loss}')
 
                 # Update parameters 
                 with torch.no_grad():
@@ -307,7 +313,7 @@ class SEP_ROTATION():
                     
                     # print(f'grad_R: {grad_R}')
 
-
+                    grad_R = grad_R.to(self.device)
                     if self.rotation_type == 'qrotate': 
                         # Update parameters in time step t-H with saved gradients 
                         upd_R = self.perspective_taker.update_quaternion(
@@ -366,7 +372,10 @@ class SEP_ROTATION():
 
                     # Calculate and save rotation losses
                     # matrix: 
-                    mat_loss = self.mse(self.ideal_rotation, rotmat)
+                    mat_loss = self.mse(
+                        (torch.mm(self.ideal_rotation, torch.transpose(rotmat, 0, 1))), 
+                        self.identity_matrix
+                    )
                     print(f'loss of rotation matrix: {mat_loss}')
                     self.rm_losses.append(mat_loss)
                     
@@ -374,8 +383,8 @@ class SEP_ROTATION():
                     # print(Rs[0])
 
                     # Initial state
-                    g_h = at_h.grad
-                    g_c = at_c.grad
+                    g_h = at_h.grad.to(self.device)
+                    g_c = at_c.grad.to(self.device)
 
                     upd_h = init_state[0] - self.at_learning_rate_state * g_h
                     upd_c = init_state[1] - self.at_learning_rate_state * g_c
@@ -395,6 +404,7 @@ class SEP_ROTATION():
                 # Update init state???
                 init_state = (at_h, at_c)
                 state = (init_state[0], init_state[1])
+                self.at_predictions = torch.tensor([]).to(self.device)
                 for i in range(self.tuning_length):
 
                     if self.rotation_type == 'qrotate': 
@@ -406,12 +416,13 @@ class SEP_ROTATION():
                     x = self.preprocessor.convert_data_AT_to_LSTM(x_R)
 
                     state = (state[0] * state_scaler, state[1] * state_scaler)
-                    self.at_predictions[i], state = self.core_model(x, state)
-
+                    upd_prediction, state = self.core_model(x, state)
+                    self.at_predictions = torch.cat((self.at_predictions, upd_prediction.reshape(1,self.input_per_frame)), 0)
+                    
                     # for last tuning cycle update initial state to track gradients 
                     if cycle==(self.tuning_cycles-1) and i==0: 
                         with torch.no_grad():
-                            final_prediction = self.at_predictions[0].clone().detach()
+                            final_prediction = self.at_predictions[0].clone().detach().to(self.device)
 
                         at_h = state[0].clone().detach().requires_grad_()
                         at_c = state[1].clone().detach().requires_grad_()

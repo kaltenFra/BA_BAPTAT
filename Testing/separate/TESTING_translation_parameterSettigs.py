@@ -39,12 +39,13 @@ class TEST_eulerVSquaternion(TEST_TRANSLATION):
         # at_loss_function = nn.SmoothL1Loss(reduction='mean', beta=1.0)
         # loss_parameters = [('beta', 1.0), ('reduction', 'mean')]
         loss_parameters = []
-        at_learning_rate_translation = 1
+        at_learning_rate_translation = 0.1
         at_learning_rate_state = 0.0 
         at_momentum_translation = 0.1
 
         grad_calc = 'meanOfTunHor'
         grad_bias = 1.5 
+        translation_range = range(5)
 
 
         for val in parameter_values: 
@@ -84,6 +85,7 @@ class TEST_eulerVSquaternion(TEST_TRANSLATION):
             results = super().run(
                 changed_parameter+"_"+str(val)+"/",
                 modified,
+                translation_range,
                 sample_nums, 
                 model_path, 
                 tuning_length, 
@@ -95,6 +97,8 @@ class TEST_eulerVSquaternion(TEST_TRANSLATION):
                 at_momentum_translation,
                 grad_calc
             )
+            exit()
+
 
         print("Terminated experiment.")
             
@@ -116,13 +120,14 @@ def main():
     # sample_nums = [250,250,250]
     # sample_nums = [100,100,100]
     # sample_nums = [20,20,20]
-    sample_nums = [50,50,50]
+    # sample_nums = [50,50,50]
     # sample_nums = [15,15,15]
     # sample_nums = [12,12,12]
-    # sample_nums = [12]
+    sample_nums = [80]
 
     tested_parameter = 'num_tuning_cycles'
     parameter_values = [1,2,3]
+    # parameter_values = [3]
 
     # tested_parameter = 'at_loss_function'
     # parameter_values = [nn.SmoothL1Loss(reduction='sum', beta=0.8), nn.MSELoss()]

@@ -31,6 +31,9 @@ class TEST_COMBI_ALL_PARAMS(TEST_COMBINATIONS):
 
         # set manually
         modification = [
+            # ('bind', None, None), 
+            # ('rotate', None, 'qrotate'), 
+            # ('translate', None, range(5))
             ('bind', 'det', None), 
             ('rotate', 'det', 'qrotate'), 
             ('translate', 'det', range(5))
@@ -38,27 +41,34 @@ class TEST_COMBI_ALL_PARAMS(TEST_COMBINATIONS):
         # rotation_type = 'eulrotate'
         rotation_type = 'qrotate'
         model_path = 'CoreLSTM/models/LSTM_46_cell.pt'
-        tuning_length = 10
+        tuning_length = 20
         num_tuning_cycles = 3
-        at_loss_function = nn.SmoothL1Loss(reduction='sum', beta=20)
-        loss_parameters = [('beta', 20), ('reduction', 'sum')]
+        # at_loss_function = nn.SmoothL1Loss(reduction='sum', beta=20)
+        # loss_parameters = [('beta', 20), ('reduction', 'sum')]
+        at_loss_function = nn.SmoothL1Loss(reduction='mean', beta=0.1)
+        loss_parameters = [('beta', 0.1), ('reduction', 'mean')]
 
         at_learning_rate_binding = 1
         at_learning_rate_rotation = 0.1
-        at_learning_rate_translation = 0.1
+        # at_learning_rate_translation = 0.1
+        at_learning_rate_translation = 1
         at_learning_rate_state = 0.1
 
+        # at_momentum_binding = 0.5
+        # at_momentum_rotation = 0.6
+        # at_momentum_translation = 0.8
         at_momentum_binding = 0.5
-        at_momentum_rotation = 0.6
-        at_momentum_translation = 0.8
+        at_momentum_rotation = 0.8
+        at_momentum_translation = 0.3
 
         grad_calc_binding = 'weightedInTunHor'
-        grad_calc_rotation = 'meanOfTunHor'
+        grad_calc_rotation = 'weightedInTunHor'
+        # grad_calc_rotation = 'meanOfTunHor'
         grad_calc_translation = 'meanOfTunHor'
         grad_calculations = [grad_calc_binding, grad_calc_rotation, grad_calc_translation]
         
         grad_bias_binding = 1.5 
-        grad_bias_rotation = 1.5 
+        grad_bias_rotation = 1.2
         grad_bias_translation = 1.5 
         grad_biases = [grad_bias_binding, grad_bias_rotation, grad_bias_translation]
 
@@ -137,15 +147,16 @@ def main():
     
     # sample_nums = [1000, 250, 300]
     # sample_nums = [250,250,250]
-    sample_nums = [100,100,100]
+    # sample_nums = [100,100,100]
     # sample_nums = [20,20,20]
     # sample_nums = [50,50,50]
     # sample_nums = [15,15,15]
     # sample_nums = [12,12,12]
-    # sample_nums = [30]
+    sample_nums = [1000]
 
-    # tested_parameter = 'num_tuning_cycles'
-    # parameter_values = [3]
+
+    tested_parameter = 'num_tuning_cycles'
+    parameter_values = [3]
 
     # tested_parameter = 'at_loss_function'
     # parameter_values = [
@@ -181,8 +192,8 @@ def main():
     # tested_parameter = 'at_momentum_rotation'
     # parameter_values = [0.0, 0.1, 0.2, 0.4, 0.8]
 
-    tested_parameter = 'at_momentum_binding'
-    parameter_values = [0.0, 0.1, 0.2, 0.4, 0.8]
+    # tested_parameter = 'at_momentum_binding'
+    # parameter_values = [0.0, 0.1, 0.2, 0.4, 0.8]
 
     # tested_parameter = 'at_momentum_translation'
     # parameter_values = [0.0, 0.1, 0.2, 0.4, 0.8]

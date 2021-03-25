@@ -1,3 +1,4 @@
+from numpy.core.numeric import Inf
 from torch.functional import norm
 import torch 
 import numpy as np
@@ -44,30 +45,6 @@ class Preprocessor():
 #         return inout_seq
 
 
-#     def get_motion_data(self, abs_data, num_frames):
-#         motion_dt = torch.Tensor(num_frames-1, self._num_features, self._num_dimensions)
-#         for i in range(num_frames-1):
-#             motion_dt[i] = abs_data[i+1] - abs_data[i]
-#         # print('Constructed motion data.')
-#         return motion_dt
-
-    
-#     def get_direction_data(self, abs_data, num_frames): 
-#         velocity = self.get_motion_data(abs_data, num_frames)
-#         magnitude = self.get_magnitude_data(abs_data, num_frames)
-#         direction = torch.Tensor([])
-
-#         for i in range(num_frames-1):
-#             ds = torch.div(velocity[i].t(),magnitude[i]).t()
-#             direction = torch.cat([direction, ds.view(1,self._num_features,self._num_dimensions)])
-
-#         return direction
-
-
-#     def get_magnitude_data(self, abs_data, num_frames): 
-#         velocity = self.get_motion_data(abs_data, num_frames)
-#         magnitude = torch.norm(velocity, dim=2)
-#         return magnitude
 
 
 #     def get_LSTM_data(self, asf_path, amc_path, frame_samples, num_test_data, train_window):
@@ -87,27 +64,6 @@ class Preprocessor():
 #         return train_inout_seq, train_data, test_data
 
     
-#     def get_LSTM_data_gestalten(self, asf_path, amc_path, frame_samples, num_test_data, train_window):
-#         visual_input, selected_joint_names = self.compile_data(asf_path=asf_path, amc_path=amc_path, frame_samples=frame_samples)
-
-#         visual_input = visual_input.permute(1,0,2)
-#         visual_input = self.std_scale_data(visual_input, 15)
-
-#         direction = self.get_direction_data(visual_input, frame_samples)
-#         magnitude = self.get_magnitude_data(visual_input, frame_samples)
-#         magnitude = magnitude.view(frame_samples-1, self._num_features, 1)
-
-#         visual_input = torch.cat([visual_input[1:], direction, magnitude], dim=2)
-#         visual_input = visual_input.reshape(1, frame_samples-1, (1 + self._num_dimensions*2) *self._num_features)
-
-#         train_data = visual_input[:,:-num_test_data,:]
-#         test_data = visual_input[:,-num_test_data:,:]
-
-#         train_inout_seq = self.create_inout_sequences(train_data[0], train_window)
-
-#         # train_data = train_data.reshape(frame_samples-num_test_data, self._num_features, self._num_dimensions)
-
-#         return train_inout_seq, train_data, test_data
 
 
 #     def get_LSTM_data_motion(self, asf_path, amc_path, frame_samples, num_test_data, train_window):
@@ -157,7 +113,7 @@ class Preprocessor():
             
         self._num_dimensions = num_dimensions
 
-
+        
     def compile_data(self, asf_path, amc_path, frame_samples):
         visual_input, selected_joint_names = test_all(asf_path, amc_path, frame_samples, 30, self.num_observations) 
         visual_input = torch.from_numpy(visual_input).type(torch.float)
@@ -192,8 +148,45 @@ class Preprocessor():
         motion_dt = torch.Tensor(num_frames-1, self._num_features, self._num_dimensions)
         for i in range(num_frames-1):
             motion_dt[i] = abs_data[i+1] - abs_data[i]
-        print('Constructed motion data.')
+        # print('Constructed motion data.')
         return motion_dt
+
+    
+    def get_direction_data(self, abs_data, num_frames): 
+        velocity = self.get_motion_data(abs_data, num_frames)
+        magnitude = self.get_magnitude_data(abs_data, num_frames)
+        direction = torch.Tensor([])
+
+        for i in range(num_frames-1):
+            ds = torch.div(velocity[i].t(),magnitude[i]).t()
+            ds *= 0.1
+
+            # check length of direction vector
+            # print(torch.sqrt(torch.sum(torch.mul(ds, ds), dim=1)))
+            # print(ds)
+            # exit()
+
+            direction = torch.cat([direction, ds.view(1,self._num_features,self._num_dimensions)])
+
+        return direction
+
+
+    def get_magnitude_data(self, abs_data, num_frames): 
+        velocity = self.get_motion_data(abs_data, num_frames)
+        magnitude = torch.norm(velocity, dim=2)                   # dir vectors with len =1
+        # magnitude = torch.linalg.norm(velocity, dim=2, ord=0)     # dir vectors with len <1
+        # magnitude = torch.linalg.norm(velocity, dim=2, ord=1)     # dir vectors with len <1
+        # magnitude = torch.linalg.norm(velocity, dim=2, ord=Inf)     # dir vectors with len <1
+        # magnitude = torch.linalg.norm(velocity, dim=2, ord=-1)    # dir vectors with len >>1
+        # magnitude = torch.linalg.norm(velocity, dim=2, ord=-2)    # dir vectors with len >1
+        return magnitude
+
+    # def get_motion_data(self, abs_data, num_frames):
+    #     motion_dt = torch.Tensor(num_frames-1, self._num_features, self._num_dimensions)
+    #     for i in range(num_frames-1):
+    #         motion_dt[i] = abs_data[i+1] - abs_data[i]
+    #     print('Constructed motion data.')
+    #     return motion_dt
 
 
     def get_LSTM_data(self, asf_path, amc_path, frame_samples, num_test_data, train_window):
@@ -202,6 +195,33 @@ class Preprocessor():
         visual_input = visual_input.permute(1,0,2)
         visual_input = self.std_scale_data(visual_input, 15)
         visual_input = visual_input.reshape(1, frame_samples, self._num_dimensions*self._num_features)
+
+        train_data = visual_input[:,:-num_test_data,:]
+        test_data = visual_input[:,-num_test_data:,:]
+
+        train_inout_seq = self.create_inout_sequences(train_data[0], train_window)
+
+        # train_data = train_data.reshape(frame_samples-num_test_data, self._num_features, self._num_dimensions)
+
+        return train_inout_seq, train_data, test_data
+
+    
+    def get_gestalt(self, input, frame_samples):
+        direction = self.get_direction_data(input, frame_samples)
+        magnitude = self.get_magnitude_data(input, frame_samples)
+        magnitude = magnitude.view(frame_samples-1, self._num_features, 1)
+
+        return torch.cat([input[1:], direction, magnitude], dim=2)
+
+
+
+    def get_LSTM_data_gestalten(self, asf_path, amc_path, frame_samples, num_test_data, train_window):
+        visual_input, selected_joint_names = self.compile_data(asf_path=asf_path, amc_path=amc_path, frame_samples=frame_samples)
+        visual_input = visual_input.permute(1,0,2)
+        visual_input = self.std_scale_data(visual_input, 15)
+
+        visual_input = self.get_gestalt(visual_input, frame_samples)
+        visual_input = visual_input.reshape(1, frame_samples-1, (1 + self._num_dimensions*2) *self._num_features)
 
         train_data = visual_input[:,:-num_test_data,:]
         test_data = visual_input[:,-num_test_data:,:]
@@ -235,6 +255,19 @@ class Preprocessor():
         visual_input, selected_joint_names = self.compile_data(asf_path=asf_path, amc_path=amc_path, frame_samples=frame_samples)
         visual_input = visual_input.permute(1,0,2)
         visual_input = self.std_scale_data(visual_input, 15)
+
+        return visual_input, selected_joint_names
+
+
+    def get_AT_data_gestalten(self, asf_path, amc_path, frame_samples):
+        self._num_dimensions = 3
+        visual_input, selected_joint_names = self.compile_data(asf_path=asf_path, amc_path=amc_path, frame_samples=frame_samples)
+        visual_input = visual_input.permute(1,0,2)
+        visual_input = self.std_scale_data(visual_input, 15)
+
+        visual_input = self.get_gestalt(visual_input, frame_samples)
+
+        self._num_dimensions = 7
 
         return visual_input, selected_joint_names
     

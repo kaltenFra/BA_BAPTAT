@@ -157,7 +157,7 @@ class TEST_TRANSLATION(TEST_PROCEDURE):
             observations = d[1]
             feat_names = d[2]
             num_frames = observations.size()[0]
-            self.BAPTAT.set_data_parameters_(num_frames, self.num_observations, self.num_dimensions)
+            self.BAPTAT.set_data_parameters_(num_frames, self.num_observations, self.num_features, self.num_dimensions)
 
             self.result_path = res_path+name+'/'
             os.mkdir(self.result_path)
@@ -180,6 +180,8 @@ class TEST_TRANSLATION(TEST_PROCEDURE):
                 at_momentum_translation)
 
             at_final_predictions, final_translation_values = self.BAPTAT.run_inference(observations, grad_calculation)
+
+            self.render(at_final_predictions.view(num_frames, self.num_features, self.num_dimensions))
 
             # retranslate observations to compare with final predictions 
             if new_translation is not None:

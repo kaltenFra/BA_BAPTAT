@@ -15,7 +15,7 @@ from Data_Compiler.data_preparation import Preprocessor
 from BAPTAT_evaluation import BAPTAT_evaluator
 
 
-class SEP_BINDING():
+class SEP_BINDING_GESTALTEN():
 
     def __init__(self):
         ## General parameters 
@@ -312,9 +312,6 @@ class SEP_BINDING():
                             weighted_grads_B[i] = np.power(self.grad_bias, i) * self.B_grads[i]
                         grad_B = torch.mean(torch.stack(weighted_grads_B), dim=0)
                     
-                    # enhance outcast line gradients!!!!!
-                    print('Include putcast grad enhancement!')
-
                     # print(f'grad_B: {grad_B}')
                     # print(f'grad_B: {torch.norm(grad_B, 1)}')
                     

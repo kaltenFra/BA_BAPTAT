@@ -29,7 +29,7 @@ class TEST_eulerVSquaternion(TEST_ROTATION):
         l2Loss = lambda x,y: self.mse(x, y) * (self.num_dimensions * self.num_observations)
 
         # set manually
-        modified = 'rand'
+        modified = 'det'
         model_path = 'CoreLSTM/models/LSTM_46_cell.pt'
         tuning_length = 10
         num_tuning_cycles = 3
@@ -79,14 +79,14 @@ def main():
 
     ## Number of samples per motion capture dataset. 
     #   -> Size of list automatically specifies number of used datasets. (fixed order)
-    # sample_nums = [1000, 250, 300]
+    sample_nums = [1000, 550, 450, 300, 250]
     # sample_nums = [250,250,250]
     # sample_nums = [100,100,100]
     # sample_nums = [20,20,20]
     # sample_nums = [50,50,50]
     # sample_nums = [15,15,15]
     # sample_nums = [12,12,12]
-    sample_nums = [20]
+    # sample_nums = [30]
 
     
     rotation_types = ['eulrotate', 'qrotate']
