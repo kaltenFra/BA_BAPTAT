@@ -157,13 +157,13 @@ class BinderExMat():
         if self.bin_momentum[0] == None: 
             return torch.zeros(self.num_features, self.num_features)
         else:
-            return self.bin_momentum[1] - self.bin_momentum[0]
+            return self.bin_momentum[0] - self.bin_momentum[1]
 
     def calc_momentum_nxm(self):
         if self.bin_momentum[0] == None: 
             return torch.zeros(self.num_features+1, self.num_observations)
         else:
-            return self.bin_momentum[1] - self.bin_momentum[0]
+            return self.bin_momentum[0] - self.bin_momentum[1]
 
     def bind(self, input, bind_matrix):
         binded = torch.matmul(bind_matrix, input)

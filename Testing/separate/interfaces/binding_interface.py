@@ -10,6 +10,7 @@ import sys
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from Testing.TESTING_procedure_abstract import TEST_PROCEDURE
 from BAPTAT_3_binding_class import SEP_BINDING
+from BAPTAT_3_binding_class_gestalten import SEP_BINDING_GESTALTEN
 
 
 class TEST_BINDING(TEST_PROCEDURE): 
@@ -19,7 +20,10 @@ class TEST_BINDING(TEST_PROCEDURE):
         experiment_path = "D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT/Grafics/SeparateBindingRuns/"+experiment_name+'/'
         super().create_trial_directory(experiment_path)
         self.trial_path = self.result_path
-        self.BAPTAT = SEP_BINDING()
+        if self.gestalten:
+            self.BAPTAT = SEP_BINDING_GESTALTEN()
+        else: 
+            self.BAPTAT = SEP_BINDING()
         print('Initialized test environment.')
 
 
@@ -212,10 +216,17 @@ class TEST_BINDING(TEST_PROCEDURE):
                 at_learning_rate_state, 
                 at_momentum_binding)
 
-            at_final_predictions, final_binding_matrix, final_binding_entries = self.BAPTAT.run_inference(
+            at_final_inputs, at_final_predictions, final_binding_matrix, final_binding_entries = self.BAPTAT.run_inference(
                 observations, grad_calculation, new_order, self.reorder)
 
-            self.render(at_final_predictions.view(num_frames, self.num_features, self.num_dimensions))
+            if self.gestalten:
+                self.render_gestalt(at_final_inputs.view(num_frames, self.num_features, self.num_dimensions))
+                self.render_gestalt(at_final_predictions.view(num_frames, self.num_features, self.num_dimensions))
+
+            else:
+                self.render(at_final_inputs.view(num_frames, self.num_features, self.num_dimensions))
+                self.render(at_final_predictions.view(num_frames, self.num_features, self.num_dimensions))
+            self.save_results_to_pt([at_final_inputs], ['final_inputs'])
 
             # reorder observations to compare with final predictions
             if new_order is not None:

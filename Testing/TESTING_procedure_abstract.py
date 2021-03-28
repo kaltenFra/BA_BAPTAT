@@ -19,15 +19,33 @@ class TEST_PROCEDURE(ABC):
         self.num_observations = num_observations
         self.num_dimensions = num_dimensions
         self.gestalten = False
+        self.dir_mag_gest = False
 
         self.preprocessor = Preprocessor(self.num_observations, self.num_features, self.num_dimensions)
         # fixed. could be changed to flexible. 
-        if self.num_dimensions == 7:
+        if self.num_dimensions > 3:
             self.gestalten = True
+            if self.num_dimensions > 6:
+                self.dir_mag_gest = True
+
 
         self.skelrenderer = SKEL_RENDERER()
 
         print('Initialized test procedure.')
+
+
+    def set_dimensions(self, new_dimensions):
+        self.num_dimensions = new_dimensions
+
+        self.preprocessor.reset_dimensions(new_dimensions)
+        # fixed. could be changed to flexible. 
+        if self.num_dimensions > 3:
+            self.gestalten = True
+            if self.num_dimensions > 6:
+                self.dir_mag_gest = True
+            else:
+                self.dir_mag_gest = False
+
 
 
     def load_data():
@@ -123,24 +141,64 @@ class TEST_PROCEDURE(ABC):
                 name += "_rebinded"
 
             elif mode == 'qrotate':
-                data = data.view(num_samples*self.num_observations, self.num_dimensions)
-                data = self.PERSP_TAKER.qrotate(data, modify)   
-                data = data.view(original_shape) 
+                if self.gestalten:
+                    if self.dir_mag_gest:
+                        mag = data[:,:, -1].view(num_samples-1, self.num_observations, 1)
+                        data = data[:,:, :-1]
+                    data = torch.cat([
+                        data[:,:, :self.num_dimensions], 
+                        data[:,:, self.num_dimensions:]], dim=2)
+                    data = data.view((num_samples-1)*self.num_observations*2, 3)
+                    data = self.PERSP_TAKER.qrotate(data, modify)   
+                    data = data.reshape(num_samples-1, self.num_observations, 6)
+                    if self.dir_mag_gest:
+                        data = torch.cat([data, mag], dim=2)
+                else:
+                    data = data.view(num_samples*self.num_observations, self.num_dimensions)
+                    data = self.PERSP_TAKER.qrotate(data, modify)   
+                    data = data.view(original_shape) 
 
                 print("Q-Rotated", name)
                 name += "_qrotated"
 
             elif mode == 'eulrotate':
-                data = data.view(num_samples*self.num_observations, self.num_dimensions)
                 rotmat = self.PERSP_TAKER.compute_rotation_matrix_(modify[0], modify[1], modify[2])
-                data = self.PERSP_TAKER.rotate(data, rotmat)   
-                data = data.view(original_shape)  
+
+                if self.gestalten:
+                    if self.dir_mag_gest:
+                        mag = data[:,:, -1].view(num_samples-1, self.num_observations, 1)
+                        data = data[:,:, :-1]
+                    data = torch.cat([
+                        data[:,:, :self.num_dimensions], 
+                        data[:,:, self.num_dimensions:]], dim=2)
+                    data = data.view((num_samples-1)*self.num_observations*2, 3)
+                    data = self.PERSP_TAKER.rotate(data, rotmat)   
+                    data = data.reshape(num_samples-1, self.num_observations, 6)
+                    if self.dir_mag_gest:
+                        data = torch.cat([data, mag], dim=2)
+                else:
+                    data = data.view(num_samples*self.num_observations, self.num_dimensions)
+                    data = self.PERSP_TAKER.rotate(data, rotmat)   
+                    data = data.view(original_shape)
+
                 
                 print("Euler-Rotated", name)
                 name += "_eulrotated"
 
             elif mode == 'translate':
+                if self.gestalten:
+                    non_pos = data[:,:,3:]
+                    data = data[:,:,:3]
+                    data = data.view((num_samples-1)*self.num_observations, 3)
+                else:
+                    data = data.view(num_samples*self.num_observations, self.num_dimensions)
+                   
                 data = self.PERSP_TAKER.translate(data, modify)
+
+                if self.gestalten:
+                    data = data.view((num_samples-1), self.num_observations, 3)
+                    data = torch.cat([data, non_pos], dim=2)
+
                 print("Translated", name)
                 name += "_translated"
             else: 
@@ -247,7 +305,10 @@ class TEST_PROCEDURE(ABC):
     def render_gestalt(self, data):
         pos = data[:,:,:3]
         dir = data[:,:,3:6]
-        mag = data[:,:,-1]
+        if self.dir_mag_gest:
+            mag = data[:,:,-1]
+        else:
+            mag = torch.ones(data[:,:,1].shape)
 
         self.skelrenderer.render(pos, dir, mag, True)
   

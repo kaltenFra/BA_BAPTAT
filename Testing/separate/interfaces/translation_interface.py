@@ -179,9 +179,11 @@ class TEST_TRANSLATION(TEST_PROCEDURE):
                 at_learning_rate_state, 
                 at_momentum_translation)
 
-            at_final_predictions, final_translation_values = self.BAPTAT.run_inference(observations, grad_calculation)
+            at_final_inputs, at_final_predictions, final_translation_values = self.BAPTAT.run_inference(observations, grad_calculation)
 
+            self.render(at_final_inputs.view(num_frames, self.num_features, self.num_dimensions))
             self.render(at_final_predictions.view(num_frames, self.num_features, self.num_dimensions))
+            self.save_results_to_pt([at_final_inputs], ['final_inputs'])
 
             # retranslate observations to compare with final predictions 
             if new_translation is not None:

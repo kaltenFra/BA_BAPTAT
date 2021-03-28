@@ -1,0 +1,27 @@
+ - modification of binding order: 	[ 0  1  4  3  2  5 10  7  8  9  6 11 12 13 14]
+
+ - modification of body translation: tensor([ 3.20000005, -2.59999990,  0.40000001])
+ - optimally infered translation: 
+	tensor([-3.20000005,  2.59999990, -0.40000001])
+
+ - number of observations: 	15
+ - number of features: 		15
+ - number of dimensions: 	3
+ - number of tuning cycles: 	3
+ - size of tuning horizon: 	10
+ - loss function: 		SmoothL1Loss()
+	> beta: 	1
+	> reduction: 	mean
+ - model: 			CORE_NET(
+  (lstm): LSTMCell(45, 360)
+  (linear): Linear(in_features=360, out_features=45, bias=True)
+)
+ - learning rate (state): 	0.0
+ - learning rates:
+	> binding: 		1
+	> rotation: 		None
+	> translation: 		1
+ - momenta:
+	> binding: 		0.1
+	> rotation: 		None
+	> translation: 		0.0

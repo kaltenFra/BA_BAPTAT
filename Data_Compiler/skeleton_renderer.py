@@ -53,8 +53,9 @@ class SKEL_RENDERER():
 
             c_frame_pos = position[frame_cnt] *up_scale
             if gestalt:
+                # c_frame_dir = direction[frame_cnt] *up_scale
+                c_frame_mag = magnitude[frame_cnt]
                 c_frame_dir = direction[frame_cnt] *up_scale
-                c_frame_mag = magnitude[frame_cnt] *up_scale
 
             self.screen.fill(self.white)
             for event in pygame.event.get():
@@ -65,29 +66,29 @@ class SKEL_RENDERER():
             for i in range(num_features):
                 joint = c_frame_pos[i]
                 if gestalt:
-                    dir_arrow = c_frame_dir[i]
-                    mag_arrow = int(c_frame_mag[i])
+                    mag_arrow = c_frame_mag[i]
+                    dir_arrow = c_frame_dir[i] *mag_arrow *10
 
                 z = 1
                 projection_matrix = torch.Tensor([
                     [z,0,z], 
                     [0,-z,0]
                 ])
-
+                
                 projected_joint = torch.matmul(projection_matrix, joint)
-                x_j = int(projected_joint[0]) + center[0]
-                y_j = int(projected_joint[1]) + center[1]
+                x_j = int(projected_joint[0] + center[0])
+                y_j = int(projected_joint[1] + center[1])
                 projected_joint = torch.tensor([x_j, y_j])
 
                 if gestalt:
                     dir_point = torch.matmul(projection_matrix, dir_arrow)
-                    x_d = int(dir_point[0]) + center[0]
-                    y_d = int(dir_point[1]) + center[1]
+                    x_d = int(projected_joint[0] + dir_point[0])
+                    y_d = int(projected_joint[1] + dir_point[1])
                     dir_point = torch.tensor([x_d, y_d])
 
-                    # self.direction_arrow(projected_joint, dir_point, 5)
-                    self.direction_arrow(projected_joint, dir_point, mag_arrow)
-                    pygame.draw.circle(self.screen, self.red, (x_d, y_d), 10)
+                    self.direction_arrow(projected_joint, dir_point, 5)
+                    # self.direction_arrow(projected_joint, dir_point, mag_arrow)
+                    # pygame.draw.circle(self.screen, self.red, (x_d, y_d), 10)
                     # pygame.draw.circle(self.screen, self.red, (x_d, y_d), mag_arrow)
 
                 pygame.draw.circle(self.screen, self.blue, (x_j, y_j), 10)
@@ -128,9 +129,14 @@ class SKEL_RENDERER():
 
 def main(): 
     skelrenderer = SKEL_RENDERER()
-    data = torch.load("BA_BAPTAT/Grafics/CombinedBindingRuns/combination_t_b_r_gest_parameter_settings/2021_Mar_25-18_28_07/b_r_t_num_tuning_cycles_2/S35T07/"+"final_predictions.pt")
+    # data = torch.load("BA_BAPTAT/Grafics/CombinedBindingRuns/combination_t_b_r_gest_parameter_settings/2021_Mar_25-18_28_07/b_r_t_num_tuning_cycles_2/S35T07/"+"final_predictions.pt")
+    # data = torch.load("Grafics/CombinedBindingRuns/combination_t_b_r_gest_parameter_settings/2021_Mar_27-17_03_09-decay-dgrad/b_r_t_num_tuning_cycles_3/S35T07/"+"final_predictions.pt")
+    data = torch.load("Grafics/CombinedBindingRuns/combination_t_b_r_gest_parameter_settings/2021_Mar_27-17_03_09-decay-dgrad/b_r_t_num_tuning_cycles_3/S35T07/"+"final_inputs.pt")
+    # data = torch.load("BA_BAPTAT/Grafics/SeparateBindingRuns/binding_sigmoid_rw_cw_rcw_gest/2021_Mar_26-14_45_05/rcwSM/S35T07_rebinded")
+    # data = torch.load("BA_BAPTAT/Grafics/SeparateRotationRuns/rotation_euler_vs_quaternion/saveruns/2021_Mar_26-09_24_18/rotationType_qrotate/S35T07_qrotated/final_inputs")
+    # data = torch.load("BA_BAPTAT/Grafics/SeparateRotationRuns/rotation_euler_vs_quaternion/saveruns/2021_Mar_26-09_24_18/rotationType_qrotate/S35T07_qrotated/final_predictions")
     gestalt = True
-    num_frames = 40
+    num_frames = 1000
     num_features = 15
 
     if gestalt:

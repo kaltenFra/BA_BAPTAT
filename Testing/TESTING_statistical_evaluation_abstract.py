@@ -9,7 +9,7 @@ import os
 import sys
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 
-class TEST_STATISTICS(ABC): 
+class TEST_STATISTICS(): 
 
     def __init__(self, num_features, num_observations, num_dimensions): 
         self.num_features = num_features
@@ -59,7 +59,7 @@ class TEST_STATISTICS(ABC):
                 titles[i], 
                 fontdict= { 'fontsize': 20, 'fontweight':'bold'})
             ax.set_ylabel(results[i], fontsize=18)
-            ax.set_xlabel('run', fontsize=18)
+            ax.set_xlabel(variation, fontsize=18)
 
             fig.savefig(path+results[i]+'comp.png')  
 
@@ -69,7 +69,8 @@ class TEST_STATISTICS(ABC):
         for result in results:
             value_dfs = []
             for val in variation_values:
-                val_path = experiment_path+variation+val+'/'
+                val = f'{val}'
+                val_path = experiment_path+variation+'_'+val+'/'
                 sample_dfs = []
                 for sample in samples:
                     sdf = pd.read_csv(val_path+sample+'/'+result+'.csv')
@@ -77,6 +78,7 @@ class TEST_STATISTICS(ABC):
                     sample_dfs += [sdf]
                 
                 vdf = pd.concat(sample_dfs).sort_values('run').assign(variation=val)
+                vdf.columns = ['run', result, variation]
                 value_dfs += [vdf]
 
             df = pd.concat(value_dfs).sort_values('run')

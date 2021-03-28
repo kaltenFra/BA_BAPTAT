@@ -1,0 +1,22 @@
+ - modification of body rotation with eulrotate by 
+	tensor([[309.15191650],
+        [296.96337891],
+        [288.56488037]])
+ - optimally infered rotation: 
+	tensor([[50.84808350],
+        [63.03662109],
+        [71.43511963]])
+
+ - number of observations: 	15
+ - number of features: 		15
+ - number of dimensions: 	3
+ - number of tuning cycles: 	3
+ - size of tuning horizon: 	20
+ - loss function: 		MSELoss()
+ - model: 			CORE_NET(
+  (lstm): LSTMCell(45, 360)
+  (linear): Linear(in_features=360, out_features=45, bias=True)
+)
+ - learning rate (state): 	0.1
+ - learning rate: 		0.1
+ - momentum: 			0.8

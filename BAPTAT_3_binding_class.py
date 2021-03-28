@@ -190,6 +190,7 @@ class SEP_BINDING():
             reorder = reorder.to(self.device)
         
         at_final_predictions = torch.tensor([]).to(self.device)
+        at_final_inputs = torch.tensor([]).to(self.device)
 
         ## Binding matrices 
         # Init binding entries 
@@ -402,6 +403,7 @@ class SEP_BINDING():
                     if cycle==(self.tuning_cycles-1) and i==0: 
                         with torch.no_grad():
                             final_prediction = self.at_predictions[0].clone().detach().to(self.device)
+                            final_input = x.clone().detach().to(self.device)
 
                         at_h = state[0].clone().detach().requires_grad_().to(self.device)
                         at_c = state[1].clone().detach().requires_grad_().to(self.device)
@@ -432,6 +434,9 @@ class SEP_BINDING():
 
             ## Reorganize storage variables            
             # observations
+            at_final_inputs = torch.cat(
+                (at_final_inputs, 
+                final_input.reshape(1,self.input_per_frame)), 0)
             self.at_inputs = torch.cat(
                 (self.at_inputs[1:], 
                 o.reshape(1, self.num_observations, self.num_input_dimensions)), 0)
@@ -450,7 +455,11 @@ class SEP_BINDING():
         for i in range(self.tuning_length): 
             at_final_predictions = torch.cat(
                 (at_final_predictions, 
-                self.at_predictions[1].reshape(1,self.input_per_frame)), 0)
+                self.at_predictions[i].reshape(1,self.input_per_frame)), 0)
+            x_i = self.binder.bind(self.at_inputs[i], bm)
+            at_final_inputs = torch.cat(
+                (at_final_inputs, 
+                x_i.reshape(1,self.input_per_frame)), 0)
 
         # get final binding matrix
         final_binding_matrix = self.binder.scale_binding_matrix(self.Bs[-1].clone().detach(), self.scale_mode, self.scale_combo)
@@ -458,7 +467,7 @@ class SEP_BINDING():
         final_binding_entries = self.Bs[-1].clone().detach()
         # print(f'final binding entires: {final_binding_entries}')
 
-        return at_final_predictions, final_binding_matrix, final_binding_entries
+        return at_final_inputs, at_final_predictions, final_binding_matrix, final_binding_entries
 
 
 

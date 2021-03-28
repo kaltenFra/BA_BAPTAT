@@ -255,7 +255,7 @@ def main():
     l2_penality=0.1
 
     # Init tools
-    prepro = Preprocessor(num_features, num_dimensions)
+    prepro = Preprocessor(num_features, num_features, num_dimensions)
     trainer = LSTM_Trainer(
         loss_function, 
         learning_rate, 
@@ -269,19 +269,20 @@ def main():
     # Init tools
     data_asf_path = 'Data_Compiler/S35T07.asf'
     data_amc_path = 'Data_Compiler/S35T07.amc'
-    model_save_path = 'CoreLSTM/models/LSTM_54_cell.pt'
+    model_save_path = 'CoreLSTM/models/LSTM_46_cell.pt'
 
-    # Preprocess data
-    io_seq, dt_train, dt_test = prepro.get_LSTM_data(
-        data_asf_path, 
-        data_amc_path, 
-        frame_samples, 
-        testing_size, 
-        train_window
-    )
+    with torch.no_grad():
+        # Preprocess data
+        io_seq, dt_train, dt_test = prepro.get_LSTM_data(
+            data_asf_path, 
+            data_amc_path, 
+            frame_samples, 
+            testing_size, 
+            train_window
+        )
 
     # Train LSTM
-    losses = trainer.train(epochs, io_seq, model_save_path)
+    # losses = trainer.train(epochs, io_seq, model_save_path)
 
     test_input = dt_train[0,-train_window:]
 

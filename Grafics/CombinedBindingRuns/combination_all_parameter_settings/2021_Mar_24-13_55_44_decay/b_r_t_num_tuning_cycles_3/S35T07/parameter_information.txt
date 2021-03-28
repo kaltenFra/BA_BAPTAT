@@ -1,0 +1,40 @@
+ - modification of binding order: 	[ 0  1  4  3  2  5 10  7  8  9  6 11 12 13 14]
+
+ - modification of body rotation with qrotate by 
+	None
+ - optimally infered rotation: 
+	tensor([[1., 0., 0., 0.]])
+
+ - modification of body translation: None
+ - optimally infered translation: 
+	tensor([0., 0., 0.])
+
+ - number of observations: 	15
+ - number of features: 		15
+ - number of dimensions: 	3
+ - number of tuning cycles: 	3
+ - size of tuning horizon: 	20
+ - loss function: 		SmoothL1Loss()
+	> beta: 	0.1
+	> reduction: 	mean
+ - model: 			CORE_NET(
+  (lstm): LSTMCell(45, 360)
+  (linear): Linear(in_features=360, out_features=45, bias=True)
+)
+ - learning rate (state): 	0.1
+ - learning rates:
+	> binding: 		1
+	> rotation: 		0.1
+	> translation: 		1
+ - momenta:
+	> binding: 		0.5
+	> rotation: 		0.8
+	> translation: 		0.3
+
+decay:
+lmd = 0.001
+l2 = torch.sum(torch.mul(bm, bm))
+lambda_b = torch.sigmoid(bm) * lmd * l2
+
+update: 
+binding_matrix = matrix - learning_rate * gradient - torch.mul(decay, matrix) - torch.mul(decay, gradient) + mom

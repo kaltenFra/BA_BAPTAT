@@ -8,15 +8,16 @@ import pandas as pd
 import sys
 
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
-from interfaces.combined_interface_gestalten import TEST_COMBINATIONS_GESTALTEN
+from interfaces.general_interface import TESTER
+from Testing.TESTING_statistical_evaluation_abstract import TEST_STATISTICS
 
 
-class TEST_COMBI_ALL_PARAMS(TEST_COMBINATIONS_GESTALTEN): 
+class TEST_COMBI_ALL_PARAMS(TESTER): 
 
     def __init__(self, num_features, num_observations, num_dimensions):
         experiment_name = "combination_t_b_r_gest_parameter_settings"
         super().__init__(num_features, num_observations, num_dimensions, experiment_name)
-
+        self.stats = TEST_STATISTICS(self.num_features, self.num_observations, self.num_dimensions)
         print('Initialized experiment.')
 
 
@@ -30,31 +31,44 @@ class TEST_COMBI_ALL_PARAMS(TEST_COMBINATIONS_GESTALTEN):
         l2Loss = lambda x,y: self.mse(x, y) * (self.num_dimensions * self.num_observations)
 
         # set manually
+        # rotation_type = 'eulrotate'
+        rotation_type = 'qrotate'
+
         modification = [
-            ('bind', None, None),
-            ('rotate', None, 'qrotate'), 
-            ('translate', None, range(5))
+            # ('bind', None, None),
+            # ('rotate', None, rotation_type), 
+            # ('rotate', None, rotation_type), 
+            # ('translate', None, range(5))
             # TODO: FIRST change part in Abstract
-            # ('bind', 'det', None),
-            # ('rotate', 'det', 'qrotate'), 
+            ('bind', 'det', None),
+            # ('rotate', 'det', rotation_type), 
             # ('translate', 'det', range(5))
         ]
 
-        model_path = 'CoreLSTM/models/LSTM_73_gestalten.pt'
-        # model_path = 'CoreLSTM/models/LSTM_69_gestalten.pt'
+        if self.num_dimensions == 7:
+            model_path = 'CoreLSTM/models/ADAM/LSTM_24_gest.pt'
+        elif self.num_dimensions == 6:
+            model_path = 'CoreLSTM/models/ADAM/LSTM_25_vel.pt'
+        elif self.num_dimensions == 3: 
+            model_path = 'CoreLSTM/models/ADAM/LSTM_25_pos.pt'
+            # model_path = 'CoreLSTM/models/LSTM_69_gestalten.pt'
+        else: 
+            print('ERROR: Unvalid number of dimensions!\nPlease use 3, 6, or 7.')
+            exit()
+
         tuning_length = 20
         num_tuning_cycles = 3
-        at_loss_function = nn.SmoothL1Loss(reduction='mean', beta=0.1)
-        loss_parameters = [('beta', 0.1), ('reduction', 'mean')]
+        # at_loss_function = mse
+        at_loss_function = nn.SmoothL1Loss(reduction='sum', beta=0.0001)
+        loss_parameters = [('beta', 0.0001), ('reduction', 'sum')]
 
-        rotation_type = 'qrotate'
-
-        at_learning_rate_binding = 1
-        at_learning_rate_rotation = 0.1
+        # at_learning_rate_binding = 1
+        at_learning_rate_binding = 0.1
+        at_learning_rate_rotation =  0.1
         at_learning_rate_translation = 1
-        at_learning_rate_state = 0.1
+        at_learning_rate_state = 0.0
 
-        at_momentum_binding = 0.5
+        at_momentum_binding = 0.9
         at_momentum_rotation = 0.8
         at_momentum_translation = 0.3
 
@@ -63,10 +77,12 @@ class TEST_COMBI_ALL_PARAMS(TEST_COMBINATIONS_GESTALTEN):
         grad_calc_translation = 'meanOfTunHor'
         grad_calculations = [grad_calc_binding, grad_calc_rotation, grad_calc_translation]
         
-        grad_bias_binding = 1.5
-        grad_bias_rotation = 1.2 
+        grad_bias_binding = 1.4
+        grad_bias_rotation = 1.1
         grad_bias_translation = 1.5 
         grad_biases = [grad_bias_binding, grad_bias_rotation, grad_bias_translation]
+
+        experiment_results = []
 
 
         for val in parameter_values: 
@@ -112,7 +128,7 @@ class TEST_COMBI_ALL_PARAMS(TEST_COMBINATIONS_GESTALTEN):
             self.BAPTAT.set_weighted_gradient_biases(grad_biases)  
             self.BAPTAT.set_rotation_type(rotation_type)          
 
-            results = super().run(
+            sample_names, result_names, results = super().run(
                 changed_parameter+"_"+str(val)+"/",
                 modification,
                 sample_nums, 
@@ -127,15 +143,46 @@ class TEST_COMBI_ALL_PARAMS(TEST_COMBINATIONS_GESTALTEN):
                 grad_calculations
             )
 
+            experiment_results += [results]
+
+        # do statistics and comparison plots 
+        
+
+        dfs = self.stats.load_csvresults_to_dataframe(
+            self.prefix_res_path, 
+            changed_parameter, 
+            parameter_values, 
+            sample_names, 
+            result_names
+            )
+
+
+        self.stats.plot_histories(
+            dfs, 
+            self.prefix_res_path, 
+            changed_parameter, 
+            result_names, 
+            result_names
+        )
+
+        self.stats.plot_value_comparisons(
+            dfs, 
+            self.prefix_res_path, 
+            changed_parameter, 
+            result_names, 
+            result_names
+        )
+
 
 
         print("Terminated experiment.")
             
-      
+       
 def main(): 
     num_observations = 15
     num_input_features = 15
-    num_dimensions = 7
+    num_dimensions = 6
+    # num_dimensions = 7
     test = TEST_COMBI_ALL_PARAMS(
         num_observations, 
         num_input_features, 
@@ -150,11 +197,13 @@ def main():
     # sample_nums = [15,15,15]
     # sample_nums = [12,12,12]
 
-    sample_nums = [300]
+    # sample_nums = [600]
+    # sample_nums = [22]
+    sample_nums = [1000, 550]
 
-    tested_parameter = 'num_tuning_cycles'
+    # tested_parameter = 'num_tuning_cycles'
     # parameter_values = [1, 2, 3]
-    parameter_values = [3]
+    # parameter_values = [3]
 
     # tested_parameter = 'at_loss_function'
     # parameter_values = [nn.SmoothL1Loss(reduction='sum', beta=0.8), nn.MSELoss()]
@@ -168,8 +217,8 @@ def main():
     #     [('beta', 1.2),('reduction', 'mean')], 
     # ]
 
-    # tested_parameter = 'at_learning_rate_binding'
-    # parameter_values = [1, 0.1, 0.01]
+    tested_parameter = 'at_learning_rate_binding'
+    parameter_values = [1, 0.1, 0.01]
 
 
     # tested_parameter = 'at_learning_rate_translation'

@@ -258,6 +258,7 @@ class COMBI_BAPTAT():
             reorder = reorder.to(self.device)
         
         at_final_predictions = torch.tensor([]).to(self.device)
+        at_final_inputs = torch.tensor([]).to(self.device)
 
         ###########################  BINDING  #################################
         if do_binding:
@@ -711,6 +712,7 @@ class COMBI_BAPTAT():
                     if cycle==(self.tuning_cycles-1) and i==0: 
                         with torch.no_grad():
                             final_prediction = self.at_predictions[0].clone().detach().to(self.device)
+                            final_input = x.clone().detach().to(self.device)
 
                         at_h = state[0].clone().detach().requires_grad_().to(self.device)
                         at_c = state[1].clone().detach().requires_grad_().to(self.device)
@@ -762,6 +764,9 @@ class COMBI_BAPTAT():
 
             ## Reorganize storage variables            
             # observations
+            at_final_inputs = torch.cat(
+                (at_final_inputs, 
+                final_input.reshape(1,self.input_per_frame)), 0)
             self.at_inputs = torch.cat(
                 (self.at_inputs[1:], 
                 o.reshape(1, self.num_observations, self.num_input_dimensions)), 0)
@@ -780,7 +785,10 @@ class COMBI_BAPTAT():
         for i in range(self.tuning_length): 
             at_final_predictions = torch.cat(
                 (at_final_predictions, 
-                self.at_predictions[1].reshape(1,self.input_per_frame)), 0)
+                self.at_predictions[i].reshape(1,self.input_per_frame)), 0)
+            at_final_inputs = torch.cat(
+                (at_final_inputs, 
+                self.at_inputs[i].reshape(1,self.input_per_frame)), 0)
 
         ###########################  BINDING  #################################
         # get final binding matrix
@@ -829,7 +837,8 @@ class COMBI_BAPTAT():
         #######################################################################
 
 
-        return [at_final_predictions, 
+        return [at_final_inputs,
+                at_final_predictions, 
                 final_binding_matrix, 
                 final_binding_entries,
                 final_rotation_values, 

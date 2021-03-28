@@ -93,14 +93,32 @@ class SEP_BINDING_GESTALTEN():
         self.input_per_frame = self.num_input_features * self.num_input_dimensions
         self.nxm = (self.num_observations != self.num_input_features)
         
+        # fixed gestalten definition. could be changed to flexible.
+        if self.num_input_dimensions == 7:
+            self.gestalten = True
+            self.num_spatial_dimensions = self.num_input_dimensions-4
+            self.num_pos = self.num_spatial_dimensions
+            self.num_dir = self.num_spatial_dimensions
+            self.num_mag = 1
+        else:
+            self.num_spatial_dimensions = self.num_input_dimensions
+        
         self.binder = BINDER_NxM(
             num_observations=self.num_observations, 
             num_features=self.num_input_features, 
             gradient_init=True)
 
-        self.preprocessor = Preprocessor(self.num_observations, self.num_input_features, self.num_input_dimensions)
-        self.evaluator = BAPTAT_evaluator(self.num_frames, self.num_observations, self.num_input_features, self.preprocessor)
-        
+        self.preprocessor = Preprocessor(
+            self.num_observations, 
+            self.num_input_features, 
+            self.num_input_dimensions)
+
+        self.evaluator = BAPTAT_evaluator(
+            self.num_frames, 
+            self.num_observations, 
+            self.num_input_features, 
+            self.preprocessor)
+
     
     def set_tuning_parameters_(self, 
         tuning_length, 
@@ -140,7 +158,7 @@ class SEP_BINDING_GESTALTEN():
 
     def init_model_(self, model_path): 
         ## Load model
-        self.core_model = CORE_NET()
+        self.core_model = CORE_NET(input_size=105, hidden_layer_size=210)
         self.core_model.load_state_dict(torch.load(model_path))
         self.core_model.eval()
         self.core_model.to(self.device)
@@ -190,6 +208,7 @@ class SEP_BINDING_GESTALTEN():
             reorder = reorder.to(self.device)
         
         at_final_predictions = torch.tensor([]).to(self.device)
+        at_final_inputs = torch.tensor([]).to(self.device)
 
         ## Binding matrices 
         # Init binding entries 
@@ -318,7 +337,8 @@ class SEP_BINDING_GESTALTEN():
 
                     # Update parameters in time step t-H with saved gradients 
                     grad_B = grad_B.to(self.device)
-                    upd_B = self.binder.update_binding_matrix_(self.Bs[0], grad_B, self.at_learning_rate, self.bm_momentum)
+                    upd_B = self.binder.decay_update_binding_matrix_(self.Bs[0], grad_B, self.at_learning_rate, self.bm_momentum)
+                    # upd_B = self.binder.update_binding_matrix_(self.Bs[0], grad_B, self.at_learning_rate, self.bm_momentum)
 
                     # Compare binding matrix to ideal matrix
                     # NOTE: ideal matrix is always identity, bc then the FBE and determinant can be calculated => provide reorder
@@ -399,6 +419,7 @@ class SEP_BINDING_GESTALTEN():
                     if cycle==(self.tuning_cycles-1) and i==0: 
                         with torch.no_grad():
                             final_prediction = self.at_predictions[0].clone().detach().to(self.device)
+                            final_input = x.clone().detach().to(self.device)
 
                         at_h = state[0].clone().detach().requires_grad_().to(self.device)
                         at_c = state[1].clone().detach().requires_grad_().to(self.device)
@@ -429,6 +450,9 @@ class SEP_BINDING_GESTALTEN():
 
             ## Reorganize storage variables            
             # observations
+            at_final_inputs = torch.cat(
+                (at_final_inputs, 
+                final_input.reshape(1,self.input_per_frame)), 0)
             self.at_inputs = torch.cat(
                 (self.at_inputs[1:], 
                 o.reshape(1, self.num_observations, self.num_input_dimensions)), 0)
@@ -447,7 +471,11 @@ class SEP_BINDING_GESTALTEN():
         for i in range(self.tuning_length): 
             at_final_predictions = torch.cat(
                 (at_final_predictions, 
-                self.at_predictions[1].reshape(1,self.input_per_frame)), 0)
+                self.at_predictions[i].reshape(1,self.input_per_frame)), 0)
+            x_i = self.binder.bind(self.at_inputs[i], bm)
+            at_final_inputs = torch.cat(
+                (at_final_inputs, 
+                x_i.reshape(1,self.input_per_frame)), 0)
 
         # get final binding matrix
         final_binding_matrix = self.binder.scale_binding_matrix(self.Bs[-1].clone().detach(), self.scale_mode, self.scale_combo)
@@ -455,7 +483,7 @@ class SEP_BINDING_GESTALTEN():
         final_binding_entries = self.Bs[-1].clone().detach()
         # print(f'final binding entires: {final_binding_entries}')
 
-        return at_final_predictions, final_binding_matrix, final_binding_entries
+        return at_final_inputs, at_final_predictions, final_binding_matrix, final_binding_entries
 
 
 

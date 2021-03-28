@@ -8,6 +8,9 @@ from torch.autograd import Variable
 from torch._C import device
 import matplotlib.pyplot as plt
 
+import sys
+sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
+
 # class imports 
 from BinAndPerspTaking.binding_nxm import BINDER_NxM
 from BinAndPerspTaking.perspective_taking import Perspective_Taker
@@ -40,6 +43,7 @@ class COMBI_BAPTAT_GESTALTEN():
         self.nxm_enhance = 'square', 
         self.nxm_last_line_scale = 0.1
         self.dummie_init = 0.1
+        self.gestalten = False
 
 
 
@@ -92,6 +96,25 @@ class COMBI_BAPTAT_GESTALTEN():
         self.grad_bias_translation = biases[2]
         print(f'\t> translation: {self.grad_bias_translation}')
 
+
+    def set_dimensions(self, num_dimensions):
+        self.num_input_dimensions = num_dimensions
+
+        if self.num_input_dimensions > 3:
+            self.gestalten = True
+            if self.num_input_dimensions > 6:
+                self.dir_mag_gest = True
+                self.num_mag = 1
+                self.num_spatial_dimensions = self.num_input_dimensions-4
+            else:
+                self.dir_mag_gest = False
+                self.num_spatial_dimensions = self.num_input_dimensions-3
+            self.num_pos = self.num_spatial_dimensions
+            self.num_dir = self.num_spatial_dimensions
+        else:
+            self.num_spatial_dimensions = self.num_input_dimensions
+        
+
     
     def set_data_parameters_(self, 
         num_frames, 
@@ -103,19 +126,9 @@ class COMBI_BAPTAT_GESTALTEN():
         self.num_frames = num_frames
         self.num_observations = num_observations
         self.num_input_features = num_input_features
-        self.num_input_dimensions = num_input_dimesions
-        self.input_per_frame = self.num_input_features * self.num_input_dimensions
         self.nxm = (self.num_observations != self.num_input_features)
-
-        # fixed gestalten definition. could be changed to flexible.
-        if self.num_input_dimensions == 7:
-            self.gestalten = True
-            self.num_spatial_dimensions = self.num_input_dimensions-4
-            self.num_pos = self.num_spatial_dimensions
-            self.num_dir = self.num_spatial_dimensions
-            self.num_mag = 1
-        else:
-            self.num_spatial_dimensions = self.num_input_dimensions
+        self.set_dimensions(num_input_dimesions)
+        self.input_per_frame = self.num_input_features * self.num_input_dimensions
 
         
         self.binder = BINDER_NxM(
@@ -183,8 +196,10 @@ class COMBI_BAPTAT_GESTALTEN():
 
     def init_model_(self, model_path): 
         ## Load model
-        # self.core_model = CORE_NET()
-        self.core_model = CORE_NET(input_size=105, hidden_layer_size=210)
+        print(model_path)
+        self.core_model = CORE_NET(
+            input_size=self.num_input_dimensions*self.num_input_features, 
+            hidden_layer_size=150)
         # self.core_model = CORE_NET(input_size=105, hidden_layer_size=15)
         self.core_model.load_state_dict(torch.load(model_path))
         self.core_model.eval()
@@ -229,26 +244,29 @@ class COMBI_BAPTAT_GESTALTEN():
     
     def set_comparison_values(self, ideal_binding, ideal_rotation, ideal_translation):
         # binding
-        self.ideal_binding = ideal_binding.to(self.device)
-        if self.nxm:
-            self.ideal_binding = self.binder.ideal_nxm_binding(
-                self.additional_features, self.ideal_binding).to(self.device)
+        if ideal_binding is not None:
+            self.ideal_binding = ideal_binding.to(self.device)
+            if self.nxm:
+                self.ideal_binding = self.binder.ideal_nxm_binding(
+                    self.additional_features, self.ideal_binding).to(self.device)
 
         # rotation
-        self.identity_matrix = torch.Tensor(np.identity(self.num_spatial_dimensions))
-        (ideal_rotation_values, self.ideal_rotation) = ideal_rotation
-        self.ideal_rotation = self.ideal_rotation.to(self.device)
-        if self.rotation_type == 'qrotate': 
-            self.ideal_quat = ideal_rotation_values.to(self.device)
-            self.ideal_angle = self.perspective_taker.qeuler(self.ideal_quat, 'xyz').to(self.device)
-        elif self.rotation_type == 'eulrotate': 
-            self.ideal_angle = ideal_rotation_values.to(self.device)
-        else: 
-            print(f'ERROR: Received unknown rotation type!\n\trotation type: {self.rotation_type}')
-            exit()
+        if ideal_rotation is not None:
+            self.identity_matrix = torch.Tensor(np.identity(self.num_spatial_dimensions))
+            (ideal_rotation_values, self.ideal_rotation) = ideal_rotation
+            self.ideal_rotation = self.ideal_rotation.to(self.device)
+            if self.rotation_type == 'qrotate': 
+                self.ideal_quat = ideal_rotation_values.to(self.device)
+                self.ideal_angle = self.perspective_taker.qeuler(self.ideal_quat, 'xyz').to(self.device)
+            elif self.rotation_type == 'eulrotate': 
+                self.ideal_angle = ideal_rotation_values.to(self.device)
+            else: 
+                print(f'ERROR: Received unknown rotation type!\n\trotation type: {self.rotation_type}')
+                exit()
 
         # translation
-        self.ideal_translation = ideal_translation.to(self.device)
+        if ideal_translation is not None:
+            self.ideal_translation = ideal_translation.to(self.device)
 
 
     ############################################################################
@@ -268,6 +286,7 @@ class COMBI_BAPTAT_GESTALTEN():
             reorder = reorder.to(self.device)
         
         at_final_predictions = torch.tensor([]).to(self.device)
+        at_final_inputs = torch.tensor([]).to(self.device)
 
         ###########################  BINDING  #################################
         if do_binding:
@@ -367,8 +386,9 @@ class COMBI_BAPTAT_GESTALTEN():
                 x_B = o
 
             if self.gestalten:
-                mag = x_B[:, -1].view(self.num_observations, 1)
-                x_B = x_B[:, :-1]
+                if self.dir_mag_gest:
+                    mag = x_B[:, -1].view(self.num_observations, 1)
+                    x_B = x_B[:, :-1]
                 x_B = torch.cat([
                     x_B[:, :self.num_spatial_dimensions], 
                     x_B[:, self.num_spatial_dimensions:]])
@@ -393,7 +413,10 @@ class COMBI_BAPTAT_GESTALTEN():
                 x_C = x_R
 
             if self.gestalten: 
-                x_C = torch.cat([x_C, dir, mag], dim=1)
+                if self.dir_mag_gest:
+                    x_C = torch.cat([x_C, dir, mag], dim=1)
+                else:
+                    x_C = torch.cat([x_C, dir], dim=1)
             #######################################################################
             
             x = self.preprocessor.convert_data_AT_to_LSTM(x_C)
@@ -426,8 +449,9 @@ class COMBI_BAPTAT_GESTALTEN():
                 x_B = o   
 
             if self.gestalten:
-                mag = x_B[:, -1].view(self.num_observations, 1)
-                x_B = x_B[:, :-1]
+                if self.dir_mag_gest:
+                    mag = x_B[:, -1].view(self.num_observations, 1)
+                    x_B = x_B[:, :-1]
                 x_B = torch.cat([
                     x_B[:, :self.num_spatial_dimensions], 
                     x_B[:, self.num_spatial_dimensions:]])
@@ -452,7 +476,10 @@ class COMBI_BAPTAT_GESTALTEN():
                 x_C = x_R
 
             if self.gestalten: 
-                x_C = torch.cat([x_C, dir, mag], dim=1)
+                if self.dir_mag_gest:
+                    x_C = torch.cat([x_C, dir, mag], dim=1)
+                else:
+                    x_C = torch.cat([x_C, dir], dim=1)
             #######################################################################
 
             x = self.preprocessor.convert_data_AT_to_LSTM(x_C)
@@ -476,16 +503,18 @@ class COMBI_BAPTAT_GESTALTEN():
                 # Propagate error back through tuning horizon 
                 loss.backward(retain_graph = True)
 
-                self.at_losses.append(loss.clone().detach().cpu().numpy())
-                print(f'frame: {self.obs_count} cycle: {cycle} loss: {loss}')
-
                 # Update parameters 
                 with torch.no_grad():
+                    # self.at_losses.append(loss.clone().detach())
+                    self.at_losses.append(loss.clone().detach().cpu())
+                    # self.at_losses.append(loss.clone().detach().cpu().numpy())
+                    print(f'frame: {self.obs_count} cycle: {cycle} loss: {loss}')
+
                     ###########################  BINDING  #################################
                     if do_binding:
                         # Calculate gradients with respect to the entires 
                         for i in range(self.tuning_length+1):
-                            self.B_grads[i] = self.Bs[i].grad
+                            self.B_grads[i] = self.Bs[i].grad 
                         # print(B_grads[tuning_length])                    
                         
                         # Calculate overall gradients 
@@ -582,7 +611,9 @@ class COMBI_BAPTAT_GESTALTEN():
                             print(f'updated quaternion: {upd_R}')
 
                             # Compare quaternion values
-                            quat_loss = torch.sum(self.perspective_taker.qmul(self.ideal_quat, upd_R))
+                            # quat_loss = torch.sum(self.perspective_taker.qmul(self.ideal_quat, upd_R))
+                            quat_loss = 2 * torch.arccos(torch.abs(torch.sum(torch.mul(self.ideal_quat, upd_R))))
+                            quat_loss = torch.rad2deg(quat_loss)
                             print(f'loss of quaternion: {quat_loss}')
                             self.rv_losses.append(quat_loss)
                             # Compute rotation matrix
@@ -633,10 +664,13 @@ class COMBI_BAPTAT_GESTALTEN():
 
                         # Calculate and save rotation losses
                         # matrix: 
-                        mat_loss = self.mse(
-                            (torch.mm(self.ideal_rotation, torch.transpose(rotmat, 0, 1))), 
-                            self.identity_matrix
-                        )
+                        # mat_loss = self.mse(
+                        #     (torch.mm(self.ideal_rotation, torch.transpose(rotmat, 0, 1))), 
+                        #     self.identity_matrix
+                        # )
+                        dif_R = torch.mm(self.ideal_rotation, torch.transpose(rotmat, 0, 1))
+                        mat_loss = torch.arccos(0.5 * (torch.trace(dif_R)-1))
+                        mat_loss = torch.rad2deg(mat_loss)
                         print(f'loss of rotation matrix: {mat_loss}')
                         self.rm_losses.append(mat_loss)
                     
@@ -723,8 +757,9 @@ class COMBI_BAPTAT_GESTALTEN():
                         x_B = self.at_inputs[i]
 
                     if self.gestalten:
-                        mag = x_B[:, -1].view(self.num_observations, 1)
-                        x_B = x_B[:, :-1]
+                        if self.dir_mag_gest:
+                            mag = x_B[:, -1].view(self.num_observations, 1)
+                            x_B = x_B[:, :-1]
                         x_B = torch.cat([
                             x_B[:, :self.num_spatial_dimensions], 
                             x_B[:, self.num_spatial_dimensions:]])
@@ -749,7 +784,10 @@ class COMBI_BAPTAT_GESTALTEN():
                         x_C = x_R
 
                     if self.gestalten: 
-                        x_C = torch.cat([x_C, dir, mag], dim=1)
+                        if self.dir_mag_gest:
+                            x_C = torch.cat([x_C, dir, mag], dim=1)
+                        else:
+                            x_C = torch.cat([x_C, dir], dim=1)
                     #######################################################################
 
                     x = self.preprocessor.convert_data_AT_to_LSTM(x_C)
@@ -762,6 +800,7 @@ class COMBI_BAPTAT_GESTALTEN():
                     if cycle==(self.tuning_cycles-1) and i==0: 
                         with torch.no_grad():
                             final_prediction = self.at_predictions[0].clone().detach().to(self.device)
+                            final_input = x.clone().detach().to(self.device)
 
                         at_h = state[0].clone().detach().requires_grad_().to(self.device)
                         at_c = state[1].clone().detach().requires_grad_().to(self.device)
@@ -786,8 +825,9 @@ class COMBI_BAPTAT_GESTALTEN():
                     x_B = o
 
                 if self.gestalten:
-                    mag = x_B[:, -1].view(self.num_observations, 1)
-                    x_B = x_B[:, :-1]
+                    if self.dir_mag_gest:
+                        mag = x_B[:, -1].view(self.num_observations, 1)
+                        x_B = x_B[:, :-1]
                     x_B = torch.cat([
                         x_B[:, :self.num_spatial_dimensions], 
                         x_B[:, self.num_spatial_dimensions:]])
@@ -812,7 +852,10 @@ class COMBI_BAPTAT_GESTALTEN():
                     x_C = x_R
 
                 if self.gestalten: 
-                    x_C = torch.cat([x_C, dir, mag], dim=1)
+                    if self.dir_mag_gest:
+                        x_C = torch.cat([x_C, dir, mag], dim=1)
+                    else:
+                        x_C = torch.cat([x_C, dir], dim=1)
                 #######################################################################
 
                 x = self.preprocessor.convert_data_AT_to_LSTM(x_C)
@@ -832,6 +875,9 @@ class COMBI_BAPTAT_GESTALTEN():
                 o.reshape(1, self.num_observations, self.num_input_dimensions)), 0)
             
             # predictions
+            at_final_inputs = torch.cat(
+                (at_final_inputs, 
+                final_input.reshape(1,self.input_per_frame)), 0)
             at_final_predictions = torch.cat(
                 (at_final_predictions, 
                 final_prediction.reshape(1,self.input_per_frame)), 0)
@@ -845,7 +891,50 @@ class COMBI_BAPTAT_GESTALTEN():
         for i in range(self.tuning_length): 
             at_final_predictions = torch.cat(
                 (at_final_predictions, 
-                self.at_predictions[1].reshape(1,self.input_per_frame)), 0)
+                self.at_predictions[i].reshape(1,self.input_per_frame)), 0)
+
+            inp_i = self.at_inputs[i]
+            if do_binding:
+                x_B = self.binder.bind(inp_i, bm)
+            else:
+                x_B = inp_i
+
+            if self.gestalten:
+                if self.dir_mag_gest:
+                    mag = x_B[:, -1].view(self.num_observations, 1)
+                    x_B = x_B[:, :-1]
+                x_B = torch.cat([
+                    x_B[:, :self.num_spatial_dimensions], 
+                    x_B[:, self.num_spatial_dimensions:]])
+            ###########################  ROTATION  ################################
+            if do_rotation: 
+                if self.rotation_type == 'qrotate': 
+                    x_R = self.perspective_taker.qrotate(x_B, self.Rs[-1])
+                else:
+                    x_R = self.perspective_taker.rotate(x_B, rotmat)
+            else: 
+                x_R = x_B
+
+            if self.gestalten:
+                dir = x_R[-self.num_observations:, :]
+                x_R = x_R[:-self.num_observations, :]
+            ###########################  TRANSLATION  #############################
+            if do_translation: 
+                x_C = self.perspective_taker.translate(x_R, self.Cs[-1])
+            else: 
+                x_C = x_R
+
+            if self.gestalten: 
+                if self.dir_mag_gest:
+                    x_C = torch.cat([x_C, dir, mag], dim=1)
+                else:
+                    x_C = torch.cat([x_C, dir], dim=1)
+            #######################################################################            
+            
+            at_final_inputs = torch.cat(
+                (at_final_inputs, 
+                x_C.reshape(1,self.input_per_frame)), 0)
+
 
         ###########################  BINDING  #################################
         # get final binding matrix
@@ -893,8 +982,8 @@ class COMBI_BAPTAT_GESTALTEN():
 
         #######################################################################
 
-
-        return [at_final_predictions, 
+        return [at_final_inputs,
+                at_final_predictions, 
                 final_binding_matrix, 
                 final_binding_entries,
                 final_rotation_values, 
@@ -928,6 +1017,7 @@ class COMBI_BAPTAT_GESTALTEN():
                 at_final_predictions, 
                 self.mse)
 
+        
         return [pred_errors, 
                 self.at_losses, 
                 self.bm_dets, 

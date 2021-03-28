@@ -1,0 +1,18 @@
+ - modification of body rotation with qrotate by 
+	tensor([[0.68041378, 0.54433101, 0.40824831, 0.27216551]])
+ - optimally infered rotation: 
+	tensor([[ 0.68041384, -0.54433107, -0.40824836, -0.27216554]])
+
+ - number of observations: 	15
+ - number of features: 		15
+ - number of dimensions: 	3
+ - number of tuning cycles: 	3
+ - size of tuning horizon: 	10
+ - loss function: 		MSELoss()
+ - model: 			CORE_NET(
+  (lstm): LSTMCell(45, 360)
+  (linear): Linear(in_features=360, out_features=45, bias=True)
+)
+ - learning rate (state): 	0.0
+ - learning rate: 		1
+ - momentum: 			0.1

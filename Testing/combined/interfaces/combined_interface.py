@@ -419,7 +419,8 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
                 at_momenta)
 
 
-            [at_final_predictions, 
+            [at_final_inputs, 
+                at_final_predictions, 
                 final_binding_matrix,
                 final_binding_entries, 
                 final_rotation_values, 
@@ -434,7 +435,9 @@ class TEST_COMBINATIONS(TEST_PROCEDURE):
                     new_order, 
                     self.reorder)
 
+            self.render(at_final_inputs.view(num_frames, self.num_features, self.num_dimensions))
             self.render(at_final_predictions.view(num_frames, self.num_features, self.num_dimensions))
+            self.save_results_to_pt([at_final_inputs], ['final_inputs'])
 
             # reorder observations to compare with final predictions
             if new_order is not None:

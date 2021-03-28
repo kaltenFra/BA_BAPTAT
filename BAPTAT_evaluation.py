@@ -1,3 +1,4 @@
+from os import TMP_MAX
 import torch 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -199,6 +200,8 @@ class BAPTAT_evaluator():
 
     
     def FBE(self, bm, ideal): 
+
+        # Mahdi-version
         fbe = 0
         c = 0
         for j in range(self.num_features):
@@ -209,6 +212,20 @@ class BAPTAT_evaluator():
                 if i != j: 
                     b += torch.square(bm[j,i])
             fbe += torch.sqrt(a+b)
+
+        # new FBE
+        # fbe = 0
+        # c = 0
+        # maxima = torch.argmax(bm, dim=0)
+        # for j in range(self.num_observations): 
+        #     m = maxima[j]
+        #     a = torch.square(bm[j, m] - ideal[j, m])
+        #     b = 0
+        #     for i in range(self.num_features):
+        #         if i!=m:
+        #             b += torch.square(bm[j, i])
+        #     fbe += torch.sqrt(a+b)
+
         return fbe
 
     

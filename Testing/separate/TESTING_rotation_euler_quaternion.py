@@ -30,22 +30,25 @@ class TEST_eulerVSquaternion(TEST_ROTATION):
 
         # set manually
         modified = 'det'
-        model_path = 'CoreLSTM/models/LSTM_46_cell.pt'
-        tuning_length = 10
+        model_path = 'CoreLSTM/models/ADAM/LSTM_19_pos.pt'
+        tuning_length = 20
         num_tuning_cycles = 3
         at_loss_function = mse
         # at_loss_function = nn.SmoothL1Loss(reduction='mean', beta=1.0)
         # loss_parameters = [('beta', 1.0), ('reduction', 'mean')]
         loss_parameters = []
-        at_learning_rate_rotation = 1
-        at_learning_rate_state = 0.0 
-        at_momentum_rotation = 0.1
+        at_learning_rate_rotation = 0.1
+        at_learning_rate_state = 0.1
+        at_momentum_rotation = 0.8
 
-        grad_calc = 'meanOfTunHor'
+        # grad_calc = 'meanOfTunHor'
+        grad_calc = 'weightedInTunHor'
+        grad_bias = 1.2
 
 
         for type in rotation_types:
             self.BAPTAT.set_rotation_type(type)
+            self.BAPTAT.set_weighted_gradient_bias(grad_bias)  
 
             results = super().run(
                 'rotationType_'+type+'/',
@@ -86,7 +89,8 @@ def main():
     # sample_nums = [50,50,50]
     # sample_nums = [15,15,15]
     # sample_nums = [12,12,12]
-    # sample_nums = [30]
+    sample_nums = [22]
+    # sample_nums = [500]
 
     
     rotation_types = ['eulrotate', 'qrotate']

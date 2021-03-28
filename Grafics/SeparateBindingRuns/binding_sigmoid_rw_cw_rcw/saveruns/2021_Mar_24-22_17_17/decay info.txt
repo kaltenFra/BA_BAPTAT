@@ -1,0 +1,9 @@
+update: 
+
+        binding_matrix = matrix - learning_rate * gradient - torch.mul(decay, matrix) - torch.mul(decay, gradient) + mom
+
+decay: 
+        lmd = 0.001
+        l2 = torch.sum(torch.mul(bm, bm))
+        lambda_b = torch.sigmoid(bm) * lmd * l2
+ 

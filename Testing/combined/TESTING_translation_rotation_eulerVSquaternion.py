@@ -26,7 +26,7 @@ class TEST_COMBI_ALL_EULERvsQUATERNION(TEST_COMBINATIONS):
         # possible loss functions
         mse = nn.MSELoss()
         l1Loss = nn.L1Loss()
-        smL1Loss = nn.SmoothL1Loss(reduction='sum')
+        smL1Loss = nn.SmoothL1Loss(reduction='mean')
         l2Loss = lambda x,y: self.mse(x, y) * (self.num_dimensions * self.num_observations)
 
         # set manually

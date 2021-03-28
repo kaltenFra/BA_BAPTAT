@@ -39,7 +39,8 @@ class TEST_ROTATION(TEST_PROCEDURE):
                 print(f'Randomly modified rotation of observed features: {rotation_type} by {modification}')
 
             elif modify == 'det': 
-                modification = torch.Tensor([0.5,0.4,0.3,0.2]).view(1,4)
+                # modification = torch.Tensor([0.5,0.4,0.3,0.2]).view(1,4)
+                modification = torch.Tensor([0.8,0.3,1.9,-0.1]).view(1,4)
                 modification = self.PERSP_TAKER.norm_quaternion(modification)
                 if rotation_type == 'eulrotate': 
                     modification = torch.rad2deg(self.PERSP_TAKER.qeuler(modification,'zyx').view(3,1))
@@ -134,11 +135,18 @@ class TEST_ROTATION(TEST_PROCEDURE):
         ## Save figures
         figures += [self.BAPTAT.evaluator.plot_at_losses(results[2], 'History of rotation matrix loss (MSE)')]
         figures += [self.BAPTAT.evaluator.plot_at_losses(results[3], 'History of rotation values loss')]
+        names = ['prediction_errors', 'at_loss_history', 'rotmat_loss_history', 'rotval_loss_history']
+        if results[4] != []:
+            figures += [self.BAPTAT.evaluator.plot_at_losses(results[4], "History of quaternion-angle loss")]
+            names += ['rotation_angle_loss']
+        else:
+            results = results[:-1]
 
+        names += ['final_rotation_values', 'final_rotation_matrix']
 
-        names = [
-            'prediction_errors', 'at_loss_history', 'rotmat_loss_history', 'rotval_loss_history', 
-            'final_rotation_values', 'final_rotation_matrix']
+        # names = [
+        #     'prediction_errors', 'at_loss_history', 'rotmat_loss_history', 'rotval_loss_history', 
+        #     'final_rotation_values', 'final_rotation_matrix']
 
         self.save_figures(figures, names)
         self.save_results_to_csv(results, names)
@@ -212,9 +220,11 @@ class TEST_ROTATION(TEST_PROCEDURE):
                 at_momentum_rotation)
 
 
-            at_final_predictions, final_rotation_values, final_rotation_matrix = self.BAPTAT.run_inference(observations, grad_calculation)
+            at_final_inputs, at_final_predictions, final_rotation_values, final_rotation_matrix = self.BAPTAT.run_inference(observations, grad_calculation)
 
+            self.render(at_final_inputs.view(num_frames, self.num_features, self.num_dimensions))
             self.render(at_final_predictions.view(num_frames, self.num_features, self.num_dimensions))
+            self.save_results_to_pt([at_final_inputs], ['final_inputs'])
 
             # rerotate observations to compare with final predictions 
             if new_rotation is not None:

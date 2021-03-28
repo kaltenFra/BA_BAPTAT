@@ -37,7 +37,7 @@ class TEST_sigVSrwVScwVSrcw(TEST_BINDING):
         loss_parameters = [('beta', 0.3), ('reduction', 'sum')]
         at_learning_rate_binding = 1
         at_learning_rate_state = 0.1
-        at_momentum_binding = 0.9
+        at_momentum_binding = 0.5
 
         grad_calc = 'weightedInTunHor'
         grad_bias = 1.5
@@ -76,14 +76,14 @@ def main():
         num_dimensions)    
 
     # sample_nums = [500, 500, 500, 500, 500]
-    sample_nums = [1000, 550, 450, 300, 250]
+    # sample_nums = [1000, 550, 450, 300, 250]
     # sample_nums = [250,250,250]
     # sample_nums = [100,100,100]
     # sample_nums = [20,20,20]
     # sample_nums = [50,50,50]
     # sample_nums = [15,15,15]
     # sample_nums = [12,12,12]
-    # sample_nums = [300]
+    sample_nums = [500, 500]
     
 
     scalers = ['sigmoid', 'rwSM', 'cwSM', 'rcwSM']

@@ -143,6 +143,7 @@ class SEP_TRANSLATION():
     def run_inference(self, observations, grad_calculation):
 
         at_final_predictions = torch.tensor([]).to(self.device)
+        at_final_inputs = torch.tensor([]).to(self.device)
 
         tb = self.perspective_taker.init_translation_bias_()
         # print(tb)
@@ -303,6 +304,7 @@ class SEP_TRANSLATION():
                     if cycle==(self.tuning_cycles-1) and i==0: 
                         with torch.no_grad():
                             final_prediction = self.at_predictions[0].clone().detach().to(self.device)
+                            final_input = x.clone().detach().to(self.device)
 
                         at_h = state[0].clone().detach().requires_grad_()
                         at_c = state[1].clone().detach().requires_grad_()
@@ -324,6 +326,9 @@ class SEP_TRANSLATION():
 
             ## Reorganize storage variables            
             # observations
+            at_final_inputs = torch.cat(
+                (at_final_inputs, 
+                final_input.reshape(1,self.input_per_frame)), 0)
             self.at_inputs = torch.cat(
                 (self.at_inputs[1:], 
                 o.reshape(1, self.num_input_features, self.num_input_dimensions)), 0)
@@ -342,7 +347,10 @@ class SEP_TRANSLATION():
         for i in range(self.tuning_length): 
             at_final_predictions = torch.cat(
                 (at_final_predictions, 
-                self.at_predictions[1].reshape(1,self.input_per_frame)), 0)
+                self.at_predictions[i].reshape(1,self.input_per_frame)), 0)
+            at_final_inputs = torch.cat(
+                (at_final_inputs, 
+                self.at_inputs[i].reshape(1,self.input_per_frame)), 0)
 
 
         # get final translation bias
@@ -350,7 +358,7 @@ class SEP_TRANSLATION():
         print(f'final translation bias: {final_translation_bias}')
 
 
-        return at_final_predictions, final_translation_bias
+        return at_final_inputs, at_final_predictions, final_translation_bias
 
 
     ############################################################################

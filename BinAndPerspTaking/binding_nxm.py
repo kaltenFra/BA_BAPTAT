@@ -155,7 +155,7 @@ class BINDER_NxM():
             else:
                 return torch.zeros(self.num_features, self.num_features).to(self.device)
         else:
-            return self.bin_momentum[1] - self.bin_momentum[0]
+            return self.bin_momentum[0] - self.bin_momentum[1]
 
 
     def bind(self, input, bind_matrix):
@@ -179,6 +179,11 @@ class BINDER_NxM():
         # lambda_b = torch.sigmoid(bm/(l2*lmd)) * lmd
         # lambda_b = torch.sigmoid(l2*bm) * lmd
         lambda_b = torch.sigmoid(bm) * lmd * l2
+
+        sig_bm = torch.sigmoid(bm)
+        l2_sig = torch.sum(torch.mul(sig_bm, sig_bm))
+        lambda_b = sig_bm * lmd * l2_sig
+
         # print(lambda_b)
 
         return lambda_b

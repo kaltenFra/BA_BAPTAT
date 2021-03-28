@@ -6,12 +6,16 @@ import sys
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from CoreLSTM.core_lstm import CORE_NET
 from Data_Compiler.data_preparation import Preprocessor
+from Data_Compiler.skeleton_renderer import SKEL_RENDERER
 
 
 class LSTM_Tester(): 
 
-    def __init__(self, loss_function):
+    def __init__(self, loss_function, num_dimensions,num_features):
         self._loss_function = loss_function
+        self.num_dimensions = num_dimensions
+        self.num_features = num_features
+        self.renderer = SKEL_RENDERER()
 
 
     def predict(self, num_predictions, model, test_input, test_target, train_window): 
@@ -31,6 +35,7 @@ class LSTM_Tester():
                 test_input = torch.cat((test_input, new_prediction[-1].reshape(1,45)), 0)
 
         predictions = test_input[-num_predictions:].reshape(num_predictions, 15, 3)
+        self.renderer.render(predictions)
 
         return predictions, prediction_error
 
@@ -50,8 +55,8 @@ class LSTM_Tester():
                     loss = self._loss_function(test_input[-1], test_target[0,i]).item()
                     prediction_error.append(loss)
 
-                    last_test_input = test_input[-1].view(15,7)
-                    current_test_target = test_target[0,i].view(15,7)
+                    last_test_input = test_input[-1].view(self.num_features,self.num_dimensions)
+                    current_test_target = test_target[0,i].view(self.num_features,self.num_dimensions)
 
                     # print(test_input.shape)
                     # print(test_target.shape)
@@ -59,21 +64,35 @@ class LSTM_Tester():
                     # print(test_input[-1, :3])
                     # print(test_input[-1, 3:6])
                     # print(test_input[-1, -1])
-                    loss = self._loss_function(last_test_input[:3], current_test_target[:3]).item()
+                    loss = self._loss_function(last_test_input[:,:3], current_test_target[:,:3]).item()
                     prediction_error_position.append(loss)
 
-                    loss = self._loss_function(last_test_input[3:6], current_test_target[3:6]).item()
-                    prediction_error_direction.append(loss)
+                    if self.num_dimensions >3:
+                        loss = self._loss_function(last_test_input[:,3:6], current_test_target[:,3:6]).item()
+                        prediction_error_direction.append(loss)
 
-                    loss = self._loss_function(last_test_input[-1], current_test_target[-1]).item()
-                    prediction_error_magnitude.append(loss)
+                        if self.num_dimensions >6:
+                            loss = self._loss_function(last_test_input[:,-1], current_test_target[:,-1]).item()
+                            prediction_error_magnitude.append(loss)
 
 
                 state = (state[0] * state_scale, state[1] * state_scale)
                 new_prediction, state = model(seq, state)
-                test_input = torch.cat((test_input, new_prediction[-1].reshape(1,105)), 0)
+                test_input = torch.cat((test_input, new_prediction[-1].reshape(1,self.num_dimensions*self.num_features)), 0)
 
-        predictions = test_input[-num_predictions:].reshape(num_predictions, 15, 7)
+        predictions = test_input[-num_predictions:].reshape(num_predictions, self.num_features, self.num_dimensions)
+        if self.num_dimensions == 3:
+            self.renderer.render(predictions, None, None, False)
+
+        else:    
+            pos = predictions[:,:,:3]
+            dir = predictions[:,:,3:6]
+            if self.num_dimensions > 6:
+                mag = predictions[:,:,-1]
+            else: 
+                mag = torch.ones(pos.size()[0], pos.size()[1], 1)
+            
+            self.renderer.render(pos, dir, mag, True)
 
         return predictions, prediction_error, prediction_error_position, prediction_error_direction, prediction_error_magnitude
 
@@ -90,7 +109,7 @@ class LSTM_Tester():
 
     
     def test(self, num_predictions, model_path, test_input, test_target, train_window, hidden_num):
-        model = CORE_NET(input_size=105, hidden_layer_size=hidden_num)
+        model = CORE_NET(input_size=self.num_features*self.num_dimensions, hidden_layer_size=hidden_num)
         model.load_state_dict(torch.load(model_path))
         model.eval()
         print(model)

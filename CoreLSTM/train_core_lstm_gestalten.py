@@ -15,13 +15,13 @@ class LSTM_Trainer():
     ## General parameters 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    def __init__(self, loss_function, learning_rate, momentum, l2_penality, batch_size, hidden_num):
-        self._model = CORE_NET(input_size=105, hidden_layer_size=hidden_num)
+    def __init__(self, loss_function, learning_rate, momentum, l2_penality, batch_size, hidden_num, num_dim, num_feat):
+        self._model = CORE_NET(input_size=num_dim*num_feat, hidden_layer_size=hidden_num)
         self.batch_size = batch_size
         self._loss_function = loss_function
-        self._optimizer = torch.optim.SGD(self._model.parameters(), lr=learning_rate, momentum=momentum, weight_decay=l2_penality)
+        # self._optimizer = torch.optim.SGD(self._model.parameters(), lr=learning_rate, momentum=momentum, weight_decay=l2_penality)
         # self._optimizer = torch.optim.SGD(self._model.parameters(), lr=learning_rate)
-        # self._optimizer = torch.optim.Adam(self._model.parameters(), lr=learning_rate)
+        self._optimizer = torch.optim.Adam(self._model.parameters(), lr=learning_rate, weight_decay=l2_penality)
 
         print('Initialized model!')
         print(self._model)
@@ -36,7 +36,7 @@ class LSTM_Trainer():
         closed_loop = 0
         closed_loop_sizes = [2,5,10,20]
         # closed_loop_epsilon = 0.0005
-        closed_loop_epsilon = 0.00000001
+        closed_loop_epsilon = -0.00000001
         # closed_loop_epsilon = 0.0000005
         prev_ep_loss = 100000000000
         # print(num_batches)
@@ -208,7 +208,7 @@ class LSTM_Trainer():
             # print(ep_loss)
             # print(prev_ep_loss-ep_loss)
             # print(prev_ep_loss-ep_loss < closed_loop_epsilon)
-            if len(closed_loop_sizes)>0 and abs(prev_ep_loss-ep_loss) < closed_loop_epsilon:
+            if len(closed_loop_sizes)>0 and abs(ep_loss-prev_ep_loss) < closed_loop_epsilon:
                 closed_loop = closed_loop_sizes[0]
                 print(f'New loop length: {closed_loop}')
                 closed_loop_sizes = closed_loop_sizes[1:]
@@ -375,8 +375,6 @@ class LSTM_Trainer():
         torch.save(self._model.state_dict(), path)
         print('Model was saved in: ' + path)
 
-
-
     
 
 def main():
@@ -384,21 +382,20 @@ def main():
     frame_samples = 1000
     train_window = 20
     testing_size = 100
+    hidden_num = 150
+
     num_features = 15
+    # num_dimensions = 6
+    # num_dimensions = 7
     num_dimensions = 3
-    hidden_num = 210
 
     # Training parameters
-    epochs = 2000
+    epochs = 1000
     mse=nn.MSELoss()
     loss_function=nn.MSELoss()
-    # loss_function= lambda x, y: mse(x, y) * (num_features * 7)
-    # loss_function= lambda x, y: mse(x, y) * (num_features * 3)
-    # loss_function=nn.L1Loss()
-    # loss_function=nn.SmoothL1Loss()
     learning_rate=0.1
-    momentum=0.1
-    l2_penality=0.01
+    momentum=0.0
+    l2_penality=0.001
 
     # Init tools
     prepro = Preprocessor(num_features=num_features, num_dimensions=num_dimensions)
@@ -408,24 +405,38 @@ def main():
         momentum, 
         l2_penality, 
         train_window, 
-        hidden_num
+        hidden_num,
+        num_dimensions,
+        num_features
     )
-    tester = LSTM_Tester(loss_function)
-    tester_1 = LSTM_Tester(mse)
+    tester = LSTM_Tester(loss_function, num_dimensions,
+        num_features)
+    tester_1 = LSTM_Tester(mse, num_dimensions,
+        num_features)
 
     # Init tools
     data_asf_path = 'Data_Compiler/S35T07.asf'
     data_amc_path = 'Data_Compiler/S35T07.amc'
-    model_save_path = 'CoreLSTM/models/LSTM_73_gestalten.pt'
+    model_save_path = 'CoreLSTM/models/ADAM/LSTM_26_pos.pt'
 
-    # Preprocess data
-    io_seq, dt_train, dt_test = prepro.get_LSTM_data_gestalten(
-        data_asf_path, 
-        data_amc_path, 
-        frame_samples, 
-        testing_size, 
-        train_window
-    )
+    with torch.no_grad():
+        # Preprocess data
+        if num_dimensions == 3:
+            io_seq, dt_train, dt_test = prepro.get_LSTM_data(
+                data_asf_path, 
+                data_amc_path, 
+                frame_samples, 
+                testing_size,
+                train_window 
+            )
+        else:
+            io_seq, dt_train, dt_test = prepro.get_LSTM_data_gestalten(
+                data_asf_path, 
+                data_amc_path, 
+                frame_samples, 
+                testing_size,
+                train_window 
+            )
 
     # Train LSTM
     losses = trainer.train(epochs, io_seq, model_save_path)
@@ -434,7 +445,7 @@ def main():
 
     # Test LSTM
     tester.test(testing_size, model_save_path, test_input, dt_test, train_window,hidden_num)
-    tester_1.test(testing_size, model_save_path, test_input, dt_test, train_window, hidden_num)
+    # tester_1.test(testing_size, model_save_path, test_input, dt_test, train_window, hidden_num)
     
 
 

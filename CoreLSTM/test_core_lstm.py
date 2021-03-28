@@ -6,12 +6,15 @@ import sys
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
 from CoreLSTM.core_lstm import CORE_NET
 from Data_Compiler.data_preparation import Preprocessor
+from Data_Compiler.skeleton_renderer import SKEL_RENDERER
+
 
 
 class LSTM_Tester(): 
 
     def __init__(self, loss_function):
         self._loss_function = loss_function
+        self.renderer = SKEL_RENDERER()
 
 
     def predict(self, num_predictions, model, test_input, test_target, train_window): 
@@ -31,6 +34,8 @@ class LSTM_Tester():
                 test_input = torch.cat((test_input, new_prediction[-1].reshape(1,45)), 0)
 
         predictions = test_input[-num_predictions:].reshape(num_predictions, 15, 3)
+
+        self.renderer.render(predictions, None, None, False)
 
         return predictions, prediction_error
 

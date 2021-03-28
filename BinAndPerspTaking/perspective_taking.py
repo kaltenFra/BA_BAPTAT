@@ -110,10 +110,14 @@ class Perspective_Taker():
     def init_quaternion(self): 
         # q = torch.rand(1,4)
         q = torch.ones(1,4)
-        q[0,0] = 0.8
-        q[0,1] = 0.5
-        q[0,2] = 1.2
-        q[0,3] = 1.5
+        q[0,0] = 0.5
+        q[0,1] = 0.4
+        q[0,2] = 0.2
+        q[0,3] = 0.1
+        # q[0,0] = 0.8
+        # q[0,1] = 0.5
+        # q[0,2] = 1.2
+        # q[0,3] = 1.5
         q = self.norm_quaternion(q)
 
         return q
