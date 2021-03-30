@@ -160,8 +160,8 @@ def main():
     rotation_type = 'qrotate'
 
     test = COMP_GEST_ROTATION_BINDING(
-        num_observations, 
         num_input_features, 
+        num_observations, 
         num_dimensions) 
 
     

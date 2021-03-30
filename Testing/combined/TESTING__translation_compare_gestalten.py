@@ -44,12 +44,12 @@ class COMP_GEST_TRANSLATION(TESTER):
 
         at_learning_rate_binding = 0.1
         at_learning_rate_rotation =  0.1
-        at_learning_rate_translation = 1
+        at_learning_rate_translation = 0.1
         at_learning_rate_state = 0.0
 
         at_momentum_binding = 0.9
         at_momentum_rotation = 0.8
-        at_momentum_translation = 0.3
+        at_momentum_translation = 0.8
 
         grad_calc_binding = 'weightedInTunHor'
         grad_calc_rotation = 'weightedInTunHor'
@@ -159,8 +159,8 @@ def main():
     num_dimensions = 3
 
     test = COMP_GEST_TRANSLATION(
-        num_observations, 
         num_input_features, 
+        num_observations, 
         num_dimensions) 
 
     

@@ -8,14 +8,14 @@ import pandas as pd
 import sys
 
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
-from interfaces.combined_interface_gestalten import TEST_COMBINATIONS_GESTALTEN
+from interfaces.general_interface import TESTER
 from Testing.TESTING_statistical_evaluation_abstract import TEST_STATISTICS
 
 
-class COMP_ROTATION_ROTTYPE_GEST(TEST_COMBINATIONS_GESTALTEN): 
+class COMP_ROTATION_ROTTYPE_GEST(TESTER): 
 
     def __init__(self, num_features, num_observations, num_dimensions):
-        experiment_name = "compare_rotation_euler_quat_dim"+num_dimensions
+        experiment_name = f"compare_rotation_euler_quat_dim{num_dimensions}"
         super().__init__(num_features, num_observations, num_dimensions, experiment_name)
         self.stats = TEST_STATISTICS(self.num_features, self.num_observations, self.num_dimensions)
         print('Initialized experiment.')
@@ -33,11 +33,14 @@ class COMP_ROTATION_ROTTYPE_GEST(TEST_COMBINATIONS_GESTALTEN):
 
         # possible models to use 
         if self.num_dimensions == 7:
-            self.model_path = 'CoreLSTM/models/ADAM/LSTM_24_gest.pt'
+            model_path = 'CoreLSTM/models/ADAM/LSTM_24_gest.pt'
+            # self.model_path = 'CoreLSTM/models/ADAM/LSTM_24_gest.pt'
         elif self.num_dimensions == 6:
-            self.model_path = 'CoreLSTM/models/ADAM/LSTM_25_vel.pt'
+            model_path = 'CoreLSTM/models/ADAM/LSTM_25_vel.pt'
+            # self.model_path = 'CoreLSTM/models/ADAM/LSTM_25_vel.pt'
         elif self.num_dimensions == 3: 
             model_path = 'CoreLSTM/models/ADAM/LSTM_26_pos.pt'
+            # model_path = 'CoreLSTM/models/ADAM/LSTM_26_pos.pt'
         else: 
             print('ERROR: Unvalid number of dimensions!\nPlease use 3, 6, or 7.')
             exit()
@@ -62,7 +65,7 @@ class COMP_ROTATION_ROTTYPE_GEST(TEST_COMBINATIONS_GESTALTEN):
         at_momentum_translation = 0.3
 
         grad_calc_binding = 'weightedInTunHor'
-        grad_calc_rotation = 'weightedInTunHor'
+        grad_calc_rotation = 'meanOfTunHor'
         grad_calc_translation = 'meanOfTunHor'
         grad_calculations = [grad_calc_binding, grad_calc_rotation, grad_calc_translation]
         
@@ -159,17 +162,20 @@ def main():
     # set the following parameters
     num_observations = 15
     num_input_features = 15
-    num_dimensions = 3
+    num_dimensions = 6
 
     test = COMP_ROTATION_ROTTYPE_GEST(
-        num_observations, 
         num_input_features, 
+        num_observations, 
         num_dimensions) 
 
 
-    sample_nums = [990, 550]
+    # sample_nums = [990, 550]
+    sample_nums = [100]
 
-    rotation_types = ['eulrotate', 'qrotate']
+
+    # rotation_types = ['eulrotate', 'qrotate']
+    rotation_types = ['qrotate']
 
     test.perform_experiment(sample_nums, rotation_types)
 

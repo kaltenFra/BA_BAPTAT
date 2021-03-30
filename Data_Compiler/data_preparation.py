@@ -1,7 +1,8 @@
 from numpy.core.numeric import Inf
-from torch.functional import norm
+from torch.functional import Tensor, norm
 import torch 
 import numpy as np
+import math
 
 import sys
 sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
@@ -153,7 +154,7 @@ class Preprocessor():
 
 
     def get_motion_data(self, abs_data, num_frames):
-        motion_dt = torch.Tensor(num_frames-1, self._num_features, self.num_spatial_dimensions)
+        motion_dt = torch.Tensor(num_frames-1, self.num_observations, self.num_spatial_dimensions)
         for i in range(num_frames-1):
             # motion_dt[i] = abs_data[i+1] - abs_data[i]
             motion_dt[i] = abs_data[i] - abs_data[i+1]
@@ -208,10 +209,6 @@ class Preprocessor():
         visual_input = visual_input.permute(1,0,2)
         visual_input = self.std_scale_data(visual_input, 15)
 
-        if self.distractor:
-            point_position = self.get_distractor_position(frame_samples)
-            visual_input = torch.cat([visual_input, point_position], dim=1)
-
         print(visual_input.shape)
         visual_input = visual_input.reshape(1, frame_samples, self._num_dimensions*self._num_features)
 
@@ -228,7 +225,7 @@ class Preprocessor():
     def get_gestalt_dir_mag(self, input, frame_samples):
         direction = self.get_direction_data(input, frame_samples)
         magnitude = self.get_magnitude_data(input, frame_samples)
-        magnitude = magnitude.view(frame_samples-1, self._num_features, 1)
+        magnitude = magnitude.view(frame_samples-1, self.num_observations, 1)
 
         return torch.cat([input[1:], direction, magnitude], dim=2)
 
@@ -244,10 +241,6 @@ class Preprocessor():
         visual_input, selected_joint_names = self.compile_data(asf_path=asf_path, amc_path=amc_path, frame_samples=frame_samples)
         visual_input = visual_input.permute(1,0,2)
         visual_input = self.std_scale_data(visual_input, 15)
-        
-        if self.distractor:
-            point_position = self.get_distractor_position(frame_samples)
-            visual_input = torch.cat([visual_input, point_position], dim=1)
 
         if self._num_dimensions == 6:
             visual_input = self.get_gestalt_vel(visual_input, frame_samples)
@@ -289,6 +282,11 @@ class Preprocessor():
         visual_input = visual_input.permute(1,0,2)
         visual_input = self.std_scale_data(visual_input, 15)
 
+        if self.distractor:
+            point_position = self.get_distractor_position(frame_samples)
+            visual_input = torch.cat([visual_input, point_position], dim=1)
+            selected_joint_names += ['distractor']
+
         return visual_input, selected_joint_names
 
 
@@ -296,7 +294,12 @@ class Preprocessor():
         # self._num_dimensions = 3
         visual_input, selected_joint_names = self.compile_data(asf_path=asf_path, amc_path=amc_path, frame_samples=frame_samples)
         visual_input = visual_input.permute(1,0,2)
-        visual_input = self.std_scale_data(visual_input, 15)
+        visual_input = self.std_scale_data(visual_input, 15)        
+
+        if self.distractor:
+            point_position = self.get_distractor_position(frame_samples)
+            visual_input = torch.cat([visual_input, point_position], dim=1)
+            selected_joint_names += ['distractor']
 
         if self._num_dimensions == 6:
             visual_input = self.get_gestalt_vel(visual_input, frame_samples)
@@ -321,33 +324,57 @@ class Preprocessor():
 
     def get_distractor_position(self, num_frames):
         x_turn = 1
-        x_speed = 0.001
-        x_radius = 1
+        x_speed = 0.01
+        x_radius = -0.3
 
         y_turn = 1
-        y_speed = 0.001
-        y_radius = 1
+        y_speed = 0.01
+        y_radius = -0.2
 
         z_turn = 1
         z_speed = 0.001
-        z_radius = 1
+        z_radius = 0.2
 
         pos = torch.zeros(num_frames, 3)
-        for i in range(num_frames):
-            for x_i in range(-1*x_turn, 1*x_turn, x_speed):
-                pos[i, 0] = torch.arccos(x_i) * x_radius
-                if x_i == (1*x_turn)-(x_speed*x_turn):
-                    x_turn *= -1
-            
-            for y_i in range(-1*y_turn, 1*y_turn, y_speed):
-                pos[i, 1] = torch.arccos(y_i) * y_radius
-                if y_i == (1*y_turn)-(y_speed*y_turn):
-                    y_turn *= -1
+        
+        x_i = np.arange(-1*x_turn, 1*x_turn, x_speed)
+        x = 0
+        y_i = np.arange(-1*y_turn, 1*y_turn, y_speed)
+        y = 0
+        z_i = np.arange(-1*z_turn, 1*z_turn, z_speed)
+        z = 0
 
-            for z_i in range(-1*z_turn, 1*z_turn, z_speed):
-                pos[i, 2] = torch.arccos(z_i) * z_radius
-                if z_i == (1*z_turn)-(z_speed*z_turn):
-                    z_turn *= -1
+        for frame in range(num_frames):
+            
+            pos[frame, 0] = x_i[x]
+            if x == len(x_i)-1:
+                x_turn *= -1
+                x_i = np.arange(-1, 1, x_speed) *x_turn
+                x = 0
+            else: 
+                x += 1
+            
+            pos[frame, 1] = y_i[y]
+            if y == len(y_i)-1:
+                y_turn *= -1
+                y_i = np.arange(-1, 1, y_speed) *y_turn
+                y = 0
+            else: 
+                y += 1
+
+            pos[frame, 2] = z_i[z]
+            if z == len(z_i)-1:
+                z_turn *= -1
+                z_i = np.arange(-1, 1, z_speed) * z_turn
+                z = 0
+            else: 
+                z += 1
+
+        pos = torch.mul(torch.acos(pos), torch.Tensor([x_radius, y_radius, z_radius]))
+        pos = pos.reshape(num_frames, 1, 3)
+
+        
+        print('Created distractor.')
 
         return pos
             

@@ -45,7 +45,7 @@ class TESTER(TEST_PROCEDURE):
             if action == 'bind':
                 self.do_binding = True
 
-                if modify == 'rand' or modify == 'det':
+                if modify == 'rand' or modify == 'det' or modify == 'set':
                     if modify == 'rand': 
                         modification = np.array(range(self.num_observations))
                         np.random.shuffle(modification)
@@ -57,6 +57,10 @@ class TESTER(TEST_PROCEDURE):
                         for i,j in swap_pairs:
                             modification[i], modification[j] = modification[j], modification[i]
                         print('Deterministically modified order of observed features: ', modification)
+
+                    else:
+                        modification = specify
+                        print('Set order of observed features: ', modification)
 
                     self.new_order = modification
                     self.reorder = torch.tensor([np.where(self.new_order == i)[0][0] 
@@ -70,9 +74,8 @@ class TESTER(TEST_PROCEDURE):
 
             elif action == 'rotate': 
                 self.do_rotation = True
-                self.rotation_type = specify
 
-                if modify == 'rand' or modify == 'det':
+                if modify == 'rand' or modify == 'det' or modify == 'set':
                     if modify == 'rand': 
                         if specify == 'qrotate':
                             modification = torch.rand(1,4) 
@@ -83,10 +86,20 @@ class TESTER(TEST_PROCEDURE):
                         print(f'Randomly modified rotation of observed features: {specify} by {modification}')
 
                     elif modify == 'det': 
-                        modification = torch.Tensor([0.5,0.4,0.3,0.2]).view(1,4)
+                        # modification = torch.Tensor([0.5,0.4,0.3,0.2]).view(1,4)
+                        modification = torch.Tensor([0.7333946 ,0.1242057, 0.6644438, -0.0722476]).view(1,4)    # eul: 45, 83, 29 | ^85.6565338
                         modification = self.PERSP_TAKER.norm_quaternion(modification)
                         if specify == 'eulrotate': 
                             modification = torch.rad2deg(self.PERSP_TAKER.qeuler(modification,'zyx').view(3,1))
+                        
+                        print(f'Deterministically modified rotation of observed features: {specify} by {modification}')
+                    
+                    else: 
+                        self.set_modification = True
+                        (specify, modification) = specify
+                        modification = modification.view(1,4)
+                        if specify == 'qrotate': 
+                            modification = self.PERSP_TAKER.norm_quaternion(modification)
                         
                         print(f'Deterministically modified rotation of observed features: {specify} by {modification}')
 
@@ -110,11 +123,13 @@ class TESTER(TEST_PROCEDURE):
                     elif specify == 'eulrotate':
                         self.rerotate = torch.zeros(3).view(3,1)
                     self.rerotation_matrix = torch.Tensor(np.identity(self.num_dimensions))
+                
+                self.rotation_type = specify
 
             elif action == 'translate': 
                 self.do_translation = True
 
-                if modify == 'rand' or modify == 'det':
+                if modify == 'rand' or modify == 'det' or modify == 'set':
                     if modify == 'rand': 
                         lower_bound = specify[0] * torch.ones(self.num_dimesions)
                         upper_bound = specify[1] * torch.ones(self.num_dimesions)
@@ -123,8 +138,14 @@ class TESTER(TEST_PROCEDURE):
                         print(f'Randomly modified translation of observed features: {modification}')
 
                     elif modify == 'det': 
-                        modification = torch.Tensor([3.2, -2.6, 0.4])
+                        # modification = torch.Tensor([3.2, -2.6, 0.4])
+                        modification = torch.Tensor([1.2, -0.8, 0.4])
                         print(f'Deterministically modified translation of observed features: {modification}')
+
+                    else:
+                        self.set_modification = True
+                        modification = specify
+                        print(f'Set translation of observed features: {modification}')
 
                     self.new_translation = modification
                     self.retranslate = self.PERSP_TAKER.inverse_translation_bias(modification)
@@ -193,6 +214,7 @@ class TESTER(TEST_PROCEDURE):
         
         # rotation
         if self.do_rotation:
+            rerot, rerot_matrix = None, None
             if current_rotation is not None: 
                 rerot = self.rerotate
                 rerot_matrix = self.rerotation_matrix
@@ -278,6 +300,7 @@ class TESTER(TEST_PROCEDURE):
                     results[res_i][:,2], 
                     'History of binding matrix loss (FBE) for whole matrix'
                 )]
+                res_fbe_nxm = res_i
                 res_i += 1
 
                 figures += [self.BAPTAT.evaluator.plot_binding_matrix_nxm(
@@ -306,7 +329,8 @@ class TESTER(TEST_PROCEDURE):
                 fig_names += [
                     'fbe_cleared_history', 'fbe_oc+af_history', 'fbe_whole_history', 
                     'final_binding_matirx', 'final_binding_neurons_activities','outcat_line_gradients']
-                csv_names += ['fbe_cleared_history', 'fbe_oc+af_history', 'fbe_whole_history', 'outcat_line_gradients']
+                # csv_names += ['fbe_cleared_history', 'fbe_oc+af_history', 'fbe_whole_history', 'outcat_line_gradients']
+                csv_names += ['fbe_whole_history']
 
             else:
                 figures += [self.BAPTAT.evaluator.plot_at_losses(results[res_i], 'History of binding matrix loss (FBE)')]
@@ -358,6 +382,17 @@ class TESTER(TEST_PROCEDURE):
 
 
         self.save_figures(figures, fig_names)
+        
+        if self.num_features != self.num_observations:
+            nxm_c_names = ['fbe_cleared_history', 'fbe_oc+af_history', 'outcat_line_gradients']
+            res = []
+            res += [results[res_fbe_nxm][:, 0]]
+            res += [results[res_fbe_nxm][:, 1]]
+            res += [self.BAPTAT.get_oc_grads()]
+            self.save_results_to_csv(res, nxm_c_names)
+            
+            results[res_fbe_nxm] = results[res_fbe_nxm][:, 2]
+
         self.save_results_to_csv(results, csv_names)
         self.save_results_to_pt(pt_results, res_names)
 
@@ -384,7 +419,8 @@ class TESTER(TEST_PROCEDURE):
         self.BAPTAT.set_dimensions(self.num_dimensions)
         print(f'Use model: {model_path}')
 
-        data = self.load_data(modification, sample_nums)
+        with torch.no_grad():
+            data = self.load_data(modification, sample_nums)
 
         res_path = ""
         if self.do_binding:
@@ -417,10 +453,15 @@ class TESTER(TEST_PROCEDURE):
             new_order = self.new_order
             new_rotation = self.new_rotation
             new_translation = self.new_translation
-            if new_order is not None and '_' not in name:
-                new_order = None
-                new_rotation = None
-                new_translation = None
+            if '_' not in name:
+                if new_order is not None:
+                    new_order = None
+
+                if new_rotation is not None:
+                    new_rotation = None
+
+                if new_translation is not None:
+                    new_translation = None
             
             self.prepare_inference(
                 self.rotation_type, 
@@ -436,8 +477,13 @@ class TESTER(TEST_PROCEDURE):
                 at_learning_rate_state, 
                 at_momenta)
 
-            # self.render_gestalt(observations)
-            # self.render_gestalt(data[1][1])
+            # if self.gestalten:
+            #     self.render_gestalt(observations)
+            #     self.render_gestalt(data[1][1])
+            # else:
+            #     self.render(observations)
+            #     self.render(data[1][1])
+
             # exit()
 
             [at_final_inputs,
@@ -470,23 +516,30 @@ class TESTER(TEST_PROCEDURE):
 
             # rerotate observations to compare with final predictions 
             if new_rotation is not None:
-                if self.dir_mag_gest:
-                    mag = observations[:,:, -1].view(num_frames, self.num_observations, 1)
-                    observations = observations[:,:, :-1]
-                observations = torch.cat([
-                    observations[:,:, :self.num_dimensions], 
-                    observations[:,:, self.num_dimensions:]], dim=2)
-                observations = observations.view((num_frames)*self.num_observations*2, 3)
-
+                data_shape = observations.shape
+                if self.gestalten:
+                    if self.dir_mag_gest:
+                        mag = observations[:,:, -1].view(num_frames, self.num_observations, 1)
+                        observations = observations[:,:, :-1]
+                    observations = torch.cat([
+                        observations[:,:, :self.num_dimensions], 
+                        observations[:,:, self.num_dimensions:]], dim=2)
+                    observations = observations.view((num_frames)*self.num_observations*2, 3)
+                else: 
+                    observations = observations.view(num_frames*self.num_observations, self.num_dimensions)
+                    
                 if self.rotation_type == 'qrotate':
                     observations = self.PERSP_TAKER.qrotate(observations, self.rerotate)   
                 else:
                     rotmat = self.PERSP_TAKER.compute_rotation_matrix_(self.rerotate[0], self.rerotate[1], self.rerotate[2])
                     observations = self.PERSP_TAKER.rotate(observations, rotmat)   
 
-                observations = observations.reshape(num_frames, self.num_observations, 6)
-                if self.dir_mag_gest:
-                    observations = torch.cat([observations, mag], dim=2)
+                if self.gestalten:
+                    observations = observations.reshape(num_frames, self.num_observations, 6)
+                    if self.dir_mag_gest:
+                        observations = torch.cat([observations, mag], dim=2)
+                else:
+                    observations = observations.view(data_shape)
                 
 
             # retranslate observations to compare with final predictions 

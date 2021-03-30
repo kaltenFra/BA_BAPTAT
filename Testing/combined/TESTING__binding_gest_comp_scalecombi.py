@@ -156,8 +156,8 @@ def main():
     num_dimensions = 3
 
     test = COMP_BINDING_SCALECOMBI_GEST(
-        num_observations, 
         num_input_features, 
+        num_observations, 
         num_dimensions) 
 
     

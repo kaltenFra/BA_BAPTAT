@@ -20,8 +20,17 @@ class TEST_PROCEDURE(ABC):
         self.num_dimensions = num_dimensions
         self.gestalten = False
         self.dir_mag_gest = False
+        if num_observations==17: 
+            self.data_distractor = True
+        else:
+            self.data_distractor = False
 
-        self.preprocessor = Preprocessor(self.num_observations, self.num_features, self.num_dimensions)
+        self.preprocessor = Preprocessor(
+            self.num_observations, 
+            self.num_features, 
+            self.num_dimensions, 
+            self.data_distractor)
+            
         # fixed. could be changed to flexible. 
         if self.num_dimensions > 3:
             self.gestalten = True
@@ -30,6 +39,8 @@ class TEST_PROCEDURE(ABC):
 
 
         self.skelrenderer = SKEL_RENDERER()
+
+        self.set_modification = False
 
         print('Initialized test procedure.')
 
@@ -89,11 +100,12 @@ class TEST_PROCEDURE(ABC):
         data = []
         
         for i in range(len(sample_nums)): 
-            optimal_data= self.load_data_original(
-                asf_paths[i], 
-                amc_paths[i], 
-                sample_nums[i])
-            data += [optimal_data]
+            if not self.set_modification:
+                optimal_data= self.load_data_original(
+                    asf_paths[i], 
+                    amc_paths[i], 
+                    sample_nums[i])
+                data += [optimal_data]
             
             if modification is not None:
                 modified_data = self.load_data_modified(
@@ -189,14 +201,16 @@ class TEST_PROCEDURE(ABC):
                 if self.gestalten:
                     non_pos = data[:,:,3:]
                     data = data[:,:,:3]
+                    original_shape = data.size()
                     data = data.view((num_samples-1)*self.num_observations, 3)
                 else:
+                    original_shape = data.size()
                     data = data.view(num_samples*self.num_observations, self.num_dimensions)
                    
                 data = self.PERSP_TAKER.translate(data, modify)
+                data = data.view(original_shape)
 
                 if self.gestalten:
-                    data = data.view((num_samples-1), self.num_observations, 3)
                     data = torch.cat([data, non_pos], dim=2)
 
                 print("Translated", name)

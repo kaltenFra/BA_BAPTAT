@@ -44,6 +44,8 @@ class COMBI_BAPTAT_GESTALTEN():
         self.nxm_last_line_scale = 0.1
         self.dummie_init = 0.1
         self.gestalten = False
+        self.decay=False
+        self.initial_angle = 0
 
 
 
@@ -79,10 +81,19 @@ class COMBI_BAPTAT_GESTALTEN():
         self.dummie_init = init_value
         print(f'Initial value for dummie line: {self.dummie_init}')
 
+
+    def set_decay(self, decay_bool):
+        self.decay = decay_bool
+
     
     def set_rotation_type(self, rotation): 
         self.rotation_type = rotation
         print('Reset type of rotation: ' + self.rotation_type)
+
+    
+    def set_init_axis_angle(self, angle): 
+        self.initial_angle = angle
+        print(f'Reset axis angle of initial rotation: {self.initial_angle}')
 
 
     def set_weighted_gradient_biases(self, biases):
@@ -273,13 +284,14 @@ class COMBI_BAPTAT_GESTALTEN():
     ##########  INFERENCE  #####################################################
     
     def run_inference(self, 
-        observations, 
-        grad_calculations, 
-        do_binding, 
-        do_rotation,
-        do_translation,
-        order, 
-        reorder):
+            observations, 
+            grad_calculations, 
+            do_binding, 
+            do_rotation,
+            do_translation,
+            order, 
+            reorder
+        ):
         [grad_calc_binding, grad_calc_rotation, grad_calc_translation] = grad_calculations
 
         if reorder is not None:
@@ -308,8 +320,8 @@ class COMBI_BAPTAT_GESTALTEN():
         if do_rotation:
             if self.rotation_type == 'qrotate': 
                 ## Rotation quaternion 
-                rq = self.perspective_taker.init_quaternion()
-                # print(rq)
+                rq = self.perspective_taker.init_quaternion(self.initial_angle)
+                print(rq)
 
                 for i in range(self.tuning_length+1):
                     quat = rq.clone().to(self.device)
@@ -318,10 +330,11 @@ class COMBI_BAPTAT_GESTALTEN():
 
             elif self.rotation_type == 'eulrotate':
                 ## Rotation euler angles 
-                # ra = perspective_taker.init_angles_()
+                ra = self.perspective_taker.init_angles_(self.initial_angle)
                 # ra = torch.Tensor([[309.89], [82.234], [95.765]])
-                ra = torch.Tensor([[75.0], [6.0], [128.0]])
-                # print(ra)
+                # ra = torch.Tensor([[82.24], [15.12], [35.84]])
+                # ra = torch.Tensor([[75.0], [6.0], [128.0]])
+                print(ra)
 
                 for i in range(self.tuning_length+1):
                     angles = []
@@ -387,7 +400,7 @@ class COMBI_BAPTAT_GESTALTEN():
 
             if self.gestalten:
                 if self.dir_mag_gest:
-                    mag = x_B[:, -1].view(self.num_observations, 1)
+                    mag = x_B[:, -1].view(self.num_input_features, 1)
                     x_B = x_B[:, :-1]
                 x_B = torch.cat([
                     x_B[:, :self.num_spatial_dimensions], 
@@ -404,8 +417,8 @@ class COMBI_BAPTAT_GESTALTEN():
                 x_R = x_B
 
             if self.gestalten:
-                dir = x_R[-self.num_observations:, :]
-                x_R = x_R[:-self.num_observations, :]
+                dir = x_R[-self.num_input_features:, :]
+                x_R = x_R[:-self.num_input_features, :]
             ###########################  TRANSLATION  #############################
             if do_translation:
                 x_C = self.perspective_taker.translate(x_R, self.Cs[i])
@@ -418,7 +431,7 @@ class COMBI_BAPTAT_GESTALTEN():
                 else:
                     x_C = torch.cat([x_C, dir], dim=1)
             #######################################################################
-            
+
             x = self.preprocessor.convert_data_AT_to_LSTM(x_C)
 
             state = (state[0] * state_scaler, state[1] * state_scaler)
@@ -450,7 +463,7 @@ class COMBI_BAPTAT_GESTALTEN():
 
             if self.gestalten:
                 if self.dir_mag_gest:
-                    mag = x_B[:, -1].view(self.num_observations, 1)
+                    mag = x_B[:, -1].view(self.num_input_features, 1)
                     x_B = x_B[:, :-1]
                 x_B = torch.cat([
                     x_B[:, :self.num_spatial_dimensions], 
@@ -467,8 +480,8 @@ class COMBI_BAPTAT_GESTALTEN():
                 x_R = x_B
     
             if self.gestalten:
-                dir = x_R[-self.num_observations:, :]
-                x_R = x_R[:-self.num_observations, :]
+                dir = x_R[-self.num_input_features:, :]
+                x_R = x_R[:-self.num_input_features, :]
             ###########################  TRANSLATION  #############################
             if do_translation:
                 x_C = self.perspective_taker.translate(x_R, self.Cs[-1])
@@ -534,8 +547,12 @@ class COMBI_BAPTAT_GESTALTEN():
                         
                         # Update parameters in time step t-H with saved gradients 
                         grad_B = grad_B.to(self.device)
-                        upd_B = self.binder.update_binding_matrix_(
-                            self.Bs[0], grad_B, self.at_learning_rate_binding, self.bm_momentum)
+                        if self.decay:
+                            upd_B = self.binder.decay_update_binding_matrix_(
+                                self.Bs[0], grad_B, self.at_learning_rate_binding, self.bm_momentum)
+                        else:
+                            upd_B = self.binder.update_binding_matrix_(
+                                self.Bs[0], grad_B, self.at_learning_rate_binding, self.bm_momentum)
 
                         # Compare binding matrix to ideal matrix
                         # NOTE: ideal matrix is always identity, bc then the FBE and determinant can be calculated => provide reorder
@@ -545,14 +562,14 @@ class COMBI_BAPTAT_GESTALTEN():
 
                         if self.nxm:
                             self.oc_grads.append(grad_B[-1])
-                            FBE = self.evaluator.FBE_nxm_additional_features(
+                            fbe_af = self.evaluator.FBE_nxm_additional_features(
                                 c_bm, self.ideal_binding, self.additional_features)
                             c_bm = self.evaluator.clear_nxm_binding_matrix(c_bm, self.additional_features)
                         
                         mat_loss = self.evaluator.FBE(c_bm, self.ideal_binding)
 
                         if self.nxm:
-                            mat_loss = torch.stack([mat_loss, FBE, mat_loss+FBE])
+                            mat_loss = torch.stack([mat_loss, fbe_af, mat_loss+fbe_af])
                         self.bm_losses.append(mat_loss)
                         print(f'loss of binding matrix (FBE): {mat_loss}')
 
@@ -578,14 +595,16 @@ class COMBI_BAPTAT_GESTALTEN():
                         if self.rotation_type == 'qrotate': 
                             for i in range(self.tuning_length+1):
                                 # save grads for all parameters in all time steps of tuning horizon
-                                self.R_grads[i] = self.Rs[i].grad
+                                self.R_grads[i] = self.Rs[i].grad / self.num_input_features
+                                # self.R_grads[i] = self.Rs[i].grad
                         else: 
                             for i in range(self.tuning_length+1):
                                 # save grads for all parameters in all time steps of tuning horizon
                                 grad = []
-                                for j in range(self.num_input_dimensions):
+                                for j in range(self.num_spatial_dimensions):
                                     grad.append(self.Rs[i][j].grad) 
-                                self.R_grads[i] = torch.stack(grad)
+                                self.R_grads[i] = torch.stack(grad) / self.num_input_features   
+                                # self.R_grads[i] = torch.stack(grad)
                         # print(self.R_grads[self.tuning_length])
                         
                         # Calculate overall gradients 
@@ -649,7 +668,7 @@ class COMBI_BAPTAT_GESTALTEN():
                             
                             # Zero out gradients for all parameters in all time steps of tuning horizon
                             for i in range(self.tuning_length+1):
-                                for j in range(self.num_input_dimensions):
+                                for j in range(self.num_spatial_dimensions):
                                     self.Rs[i][j].requires_grad = False
                                     self.Rs[i][j].grad.data.zero_()
 
@@ -671,6 +690,8 @@ class COMBI_BAPTAT_GESTALTEN():
                         dif_R = torch.mm(self.ideal_rotation, torch.transpose(rotmat, 0, 1))
                         mat_loss = torch.arccos(0.5 * (torch.trace(dif_R)-1))
                         mat_loss = torch.rad2deg(mat_loss)
+                        if self.rotation_type == 'qrotate' and quat_loss == 0.0:
+                            mat_loss = 0.0
                         print(f'loss of rotation matrix: {mat_loss}')
                         self.rm_losses.append(mat_loss)
                     
@@ -679,7 +700,8 @@ class COMBI_BAPTAT_GESTALTEN():
                         ## Get gradients 
                         for i in range(self.tuning_length+1):
                             # save grads for all parameters in all time steps of tuning horizon 
-                            self.C_grads[i] = self.Cs[i].grad
+                            self.C_grads[i] = self.Cs[i].grad / self.num_input_features
+                            # self.C_grads[i] = self.Cs[i].grad 
 
                         # print(self.C_grads[self.tuning_length])
                         
@@ -703,9 +725,9 @@ class COMBI_BAPTAT_GESTALTEN():
                             self.Cs[0], grad_C, self.at_learning_rate_translation, self.c_momentum)
                         
                         # Compare translation bias to ideal bias
-                        trans_loss = self.mse(self.ideal_translation, upd_C)
+                        trans_loss = torch.norm(upd_C-self.ideal_translation)
                         self.c_losses.append(trans_loss)
-                        print(f'loss of translation bias (MSE): {trans_loss}')
+                        print(f'loss of translation bias: {trans_loss}')
                         
                         # Zero out gradients for all parameters in all time steps of tuning horizon
                         for i in range(self.tuning_length+1):
@@ -758,7 +780,7 @@ class COMBI_BAPTAT_GESTALTEN():
 
                     if self.gestalten:
                         if self.dir_mag_gest:
-                            mag = x_B[:, -1].view(self.num_observations, 1)
+                            mag = x_B[:, -1].view(self.num_input_features, 1)
                             x_B = x_B[:, :-1]
                         x_B = torch.cat([
                             x_B[:, :self.num_spatial_dimensions], 
@@ -775,8 +797,8 @@ class COMBI_BAPTAT_GESTALTEN():
                         x_R = x_B
                 
                     if self.gestalten:
-                        dir = x_R[-self.num_observations:, :]
-                        x_R = x_R[:-self.num_observations, :]
+                        dir = x_R[-self.num_input_features:, :]
+                        x_R = x_R[:-self.num_input_features, :]
                     ###########################  TRANSLATION  #############################
                     if do_translation:
                         x_C = self.perspective_taker.translate(x_R, self.Cs[i])
@@ -826,7 +848,7 @@ class COMBI_BAPTAT_GESTALTEN():
 
                 if self.gestalten:
                     if self.dir_mag_gest:
-                        mag = x_B[:, -1].view(self.num_observations, 1)
+                        mag = x_B[:, -1].view(self.num_input_features, 1)
                         x_B = x_B[:, :-1]
                     x_B = torch.cat([
                         x_B[:, :self.num_spatial_dimensions], 
@@ -843,8 +865,8 @@ class COMBI_BAPTAT_GESTALTEN():
                     x_R = x_B
 
                 if self.gestalten:
-                    dir = x_R[-self.num_observations:, :]
-                    x_R = x_R[:-self.num_observations, :]
+                    dir = x_R[-self.num_input_features:, :]
+                    x_R = x_R[:-self.num_input_features, :]
                 ###########################  TRANSLATION  #############################
                 if do_translation: 
                     x_C = self.perspective_taker.translate(x_R, self.Cs[-1])
@@ -901,7 +923,7 @@ class COMBI_BAPTAT_GESTALTEN():
 
             if self.gestalten:
                 if self.dir_mag_gest:
-                    mag = x_B[:, -1].view(self.num_observations, 1)
+                    mag = x_B[:, -1].view(self.num_input_features, 1)
                     x_B = x_B[:, :-1]
                 x_B = torch.cat([
                     x_B[:, :self.num_spatial_dimensions], 
@@ -916,8 +938,8 @@ class COMBI_BAPTAT_GESTALTEN():
                 x_R = x_B
 
             if self.gestalten:
-                dir = x_R[-self.num_observations:, :]
-                x_R = x_R[:-self.num_observations, :]
+                dir = x_R[-self.num_input_features:, :]
+                x_R = x_R[:-self.num_input_features, :]
             ###########################  TRANSLATION  #############################
             if do_translation: 
                 x_C = self.perspective_taker.translate(x_R, self.Cs[-1])
@@ -959,7 +981,7 @@ class COMBI_BAPTAT_GESTALTEN():
             else:
                 final_rotation_values = [
                     self.Rs[0][i].clone().detach() 
-                    for i in range(self.num_input_dimensions)]
+                    for i in range(self.num_spatial_dimensions)]
                 print(f'final euler angles: {final_rotation_values}')
                 final_rotation_matrix = self.perspective_taker.compute_rotation_matrix_(
                     final_rotation_values[0], 

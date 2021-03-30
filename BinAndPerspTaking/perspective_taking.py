@@ -28,8 +28,12 @@ class Perspective_Taker():
     #################### EULER ROTATION
     #################################################################################
 
-    def init_angles_(self):
-        return torch.rand((self.dimensions, 1), requires_grad=False) * 360
+    def init_angles_(self, init_axis_angle):
+        q = self.init_quaternion(init_axis_angle)
+        eul = torch.rad2deg(self.qeuler(q, 'zyx'))
+        return eul
+        # return torch.zeros((self.dimensions, 1), requires_grad=False) * 360
+        # return torch.rand((self.dimensions, 1), requires_grad=False) * 360
 
     
     def compute_rotation_matrix_(self, alpha, beta, gamma):
@@ -107,17 +111,56 @@ class Perspective_Taker():
     #################### QUATERNION ROTATION
     #################################################################################
 
-    def init_quaternion(self): 
+    def init_quaternion(self, init_axis_angle): 
         # q = torch.rand(1,4)
-        q = torch.ones(1,4)
-        q[0,0] = 0.5
-        q[0,1] = 0.4
-        q[0,2] = 0.2
-        q[0,3] = 0.1
+        # q = torch.ones(1,4)
+        # q[0,0] = 0.5
+        # q[0,1] = 0.4
+        # q[0,2] = 0.2
+        # q[0,3] = 0.1
         # q[0,0] = 0.8
         # q[0,1] = 0.5
         # q[0,2] = 1.2
         # q[0,3] = 1.5
+
+        q = torch.zeros(1,4)
+        if init_axis_angle == 0:
+            # init with axis angle of 90°
+            q[0,0] = 1.0
+
+        elif init_axis_angle == 90:
+            # init with axis angle of 90°
+            q[0,0] = 0.7071068 
+            q[0,1] = 0.4082483 
+            q[0,2] = 0.4082483 
+            q[0,3] = 0.4082483 
+
+        elif init_axis_angle == 45:
+            # init with axis angle of 45°
+            q[0,0] = 0.9238795  
+            q[0,1] = 0.2209424 
+            q[0,2] = 0.2209424 
+            q[0,3] = 0.2209424 
+
+        elif init_axis_angle == 135:
+            # init with axis angle of 135°
+            q[0,0] = 0.3826834  
+            q[0,1] = 0.5334021 
+            q[0,2] = 0.5334021 
+            q[0,3] = 0.5334021
+
+        elif init_axis_angle == 180:
+            # init with axis angle of 180°
+            q[0,0] = 0.0
+            q[0,1] = 0.5773503 
+            q[0,2] = 0.5773503 
+            q[0,3] = 0.5773503
+
+        else: 
+            # invalid axis angle
+            print(f'Received invalid initial axis angle: {init_axis_angle}')
+            exit()
+
         q = self.norm_quaternion(q)
 
         return q
@@ -227,7 +270,7 @@ class Perspective_Taker():
 
         # multiplied entries
         ww = w*w
-        wx = w*w
+        wx = w*x
         wy = w*y
         wz = w*z
         
@@ -241,10 +284,16 @@ class Perspective_Taker():
         zz = z*z
 
         # compute roatation matrix
+        # rotation_matrix = torch.Tensor(
+        #     [[1-2*(yy+zz),   2*(xy-wz),   2*(xz+wy)], 
+        #      [  2*(xy+wz), 1-2*(xx+zz),   2*(yz-wx)], 
+        #      [  2*(xz-wy),   2*(yz+wx), 1-2*(xx+yy)]]
+        # ).to(self.device)
+
         rotation_matrix = torch.Tensor(
-            [[1-2*(yy+zz),   2*(xy-wz),   2*(xz+wy)], 
-             [  2*(xy+wz), 1-2*(xx+zz),   2*(yz-wx)], 
-             [  2*(xz-wy),   2*(yz+wx), 1-2*(xx+yy)]]
+            [[2*(ww+xx)-1,   2*(xy-wz),   2*(xz+wy)], 
+             [  2*(xy+wz), 2*(ww+yy)-1,   2*(yz-wx)], 
+             [  2*(xz-wy),   2*(yz+wx), 2*(ww+zz)-1]]
         ).to(self.device)
 
         return rotation_matrix
@@ -315,7 +364,8 @@ class Perspective_Taker():
 
     def init_translation_bias_(self):
         # tb = torch.rand(self.dimensions)
-        tb = torch.ones(self.dimensions)
+        # tb = torch.ones(self.dimensions)
+        tb = torch.zeros(self.dimensions)
         return tb
 
 

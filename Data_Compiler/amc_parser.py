@@ -7,6 +7,10 @@ import matplotlib.pyplot as plt
 from transforms3d.euler import euler2mat
 from mpl_toolkits.mplot3d import Axes3D
 
+import sys
+
+sys.path.append('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT')
+
 
 class Joint:
   def __init__(self, name, direction, length, axis, dof, limits):
@@ -391,7 +395,7 @@ def test_all(user_asf_path, user_amc_path, user_input_frames, user_input_feature
     # #selected joints are: Lhipjoint, Lfemur, Lfoot, Rhipjoint, Rfemur, Rfoot, Throax, Lowerneck, Head, Lclavicle, Lradius, Lhand, Rclavicle, Rradius, Rhand
     # selector = [0, 1, 3, 5, 6, 8, 12, 13, 15, 16, 18, 20, 23, 25, 27]
 
-  elif nr_final_selected_joitns==16: 
+  elif nr_final_selected_joitns>=16: 
     selector = np.zeros(nr_final_selected_joitns)
     #selected joints are: Lhipjoint, Lfemur, Lfoot, Rhipjoint, Rfemur, Rfoot, Lowerback, Throax, Lowerneck, Head, Lclavicle, Lradius, Lhand, Rclavicle, Rradius, Rhand
     selector = [0, 1, 3, 5, 6, 8, 10, 12, 13, 15, 16, 18, 20, 23, 25, 27]

@@ -15,7 +15,7 @@ from Testing.TESTING_statistical_evaluation_abstract import TEST_STATISTICS
 class COMP_GEST_ROTATION_BINDING(TESTER): 
 
     def __init__(self, num_features, num_observations, num_dimensions):
-        experiment_name = "compare_gestalten_rot_bin"
+        experiment_name = "compare_gestalten_trans_rot_bin"
         super().__init__(num_features, num_observations, num_dimensions, experiment_name)
         self.stats = TEST_STATISTICS(self.num_features, self.num_observations, self.num_dimensions)
         print('Initialized experiment.')
@@ -34,7 +34,7 @@ class COMP_GEST_ROTATION_BINDING(TESTER):
         # NOTE: set manually, for all parameters that are not tested
 
         tuning_length = 20
-        num_tuning_cycles = 3
+        num_tuning_cycles = 5
         # at_loss_function = mse
         at_loss_function = nn.SmoothL1Loss(reduction='sum', beta=0.0001)
         loss_parameters = [('beta', 0.0001), ('reduction', 'sum')]
@@ -42,15 +42,15 @@ class COMP_GEST_ROTATION_BINDING(TESTER):
 
         at_learning_rate_binding = 0.1
         at_learning_rate_rotation =  0.1
-        at_learning_rate_translation = 1
+        at_learning_rate_translation = 0.1
         at_learning_rate_state = 0.0
 
         at_momentum_binding = 0.9
         at_momentum_rotation = 0.8
-        at_momentum_translation = 0.3
+        at_momentum_translation = 0.8
 
         grad_calc_binding = 'weightedInTunHor'
-        grad_calc_rotation = 'weightedInTunHor'
+        grad_calc_rotation = 'meanOfTunHor'
         grad_calc_translation = 'meanOfTunHor'
         grad_calculations = [grad_calc_binding, grad_calc_rotation, grad_calc_translation]
         
@@ -76,11 +76,11 @@ class COMP_GEST_ROTATION_BINDING(TESTER):
 
             # possible models to use 
             if self.num_dimensions == 7:
-                model_path = 'CoreLSTM/models/ADAM/LSTM_24_gest.pt'
+                model_path = 'BA_BAPTAT/CoreLSTM/models/ADAM/LSTM_24_gest.pt'
             elif self.num_dimensions == 6:
-                model_path = 'CoreLSTM/models/ADAM/LSTM_25_vel.pt'
+                model_path = 'BA_BAPTAT/CoreLSTM/models/ADAM/LSTM_25_vel.pt'
             elif self.num_dimensions == 3: 
-                model_path = 'CoreLSTM/models/ADAM/LSTM_26_pos.pt'
+                model_path = 'BA_BAPTAT/CoreLSTM/models/ADAM/LSTM_26_pos.pt'
             else: 
                 print('ERROR: Unvalid number of dimensions!\nPlease use 3, 6, or 7.')
                 exit()
@@ -160,27 +160,27 @@ def main():
     rotation_type = 'qrotate'
 
     test = COMP_GEST_ROTATION_BINDING(
-        num_observations, 
         num_input_features, 
+        num_observations, 
         num_dimensions) 
 
     
     modification = [
-        ('bind', None, None)           
-        # ('bind', 'det', None) 
+        # ('bind', None, None)           
+        ('bind', 'det', None) 
         # ('bind', 'rand', None) 
         ,
-        ('rotate', None, None)
-        # ('rotate', 'det', rotation_type)
+        # ('rotate', None, None)
+        ('rotate', 'det', rotation_type)
         # ('rotate', 'rand', rotation_type)
         ,
-        ('translate', None, None)
-        # ('translate', 'det', None)
+        # ('translate', None, None)
+        ('translate', 'det', None)
         # ('translate', 'rand', [-2, 4])
     ]
 
     sample_nums = [22]
-    # sample_nums = [1000, 550]
+    # sample_nums = [990, 550, 450, 300]
 
     tested_dimensions = [3, 6, 7]
 

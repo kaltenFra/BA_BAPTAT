@@ -15,7 +15,7 @@ from Testing.TESTING_statistical_evaluation_abstract import TEST_STATISTICS
 class COMP_BINDING_SCALE_GEST(TESTER): 
 
     def __init__(self, num_features, num_observations, num_dimensions):
-        experiment_name = "compare_binding_sig_rw_cw_rcw_dim"+num_dimensions
+        experiment_name = f"compare_binding_sig_rw_cw_rcw_dim{num_dimensions}"
         super().__init__(num_features, num_observations, num_dimensions, experiment_name)
         self.stats = TEST_STATISTICS(self.num_features, self.num_observations, self.num_dimensions)
         print('Initialized experiment.')
@@ -36,7 +36,7 @@ class COMP_BINDING_SCALE_GEST(TESTER):
         elif self.num_dimensions == 6:
             self.model_path = 'CoreLSTM/models/ADAM/LSTM_25_vel.pt'
         elif self.num_dimensions == 3: 
-            model_path = 'CoreLSTM/models/ADAM/LSTM_26_pos.pt'
+            self.model_path = 'CoreLSTM/models/ADAM/LSTM_26_pos.pt'
         else: 
             print('ERROR: Unvalid number of dimensions!\nPlease use 3, 6, or 7.')
             exit()
@@ -103,7 +103,7 @@ class COMP_BINDING_SCALE_GEST(TESTER):
                 changed_parameter+"_"+str(scaler)+"/",
                 modification,
                 sample_nums, 
-                model_path, 
+                self.model_path, 
                 tuning_length, 
                 num_tuning_cycles, 
                 at_loss_function,
@@ -153,23 +153,25 @@ def main():
     # set the following parameters
     num_observations = 15
     num_input_features = 15
-    num_dimensions = 3
+    num_dimensions = 7
 
     test = COMP_BINDING_SCALE_GEST(
-        num_observations, 
         num_input_features, 
+        num_observations, 
         num_dimensions) 
 
     
     modification = [
-        # ('bind', None, None)           
-        ('bind', 'det', None) 
+        ('bind', None, None)           
+        # ('bind', 'det', None) 
         # ('bind', 'rand', None) 
     ]
 
-    sample_nums = [990, 550]
+    sample_nums = [990]
+    # sample_nums = [990, 550]
 
-    scalers = ['sigmoid', 'rwSM', 'cwSM', 'rcwSM']
+    scalers = ['sigmoid',  'rcwSM']
+    # scalers = ['sigmoid', 'rwSM', 'cwSM', 'rcwSM']
 
     test.perform_experiment(sample_nums, modification, scalers)
 

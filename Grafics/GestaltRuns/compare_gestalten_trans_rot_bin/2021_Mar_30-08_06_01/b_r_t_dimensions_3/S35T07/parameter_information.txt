@@ -1,0 +1,32 @@
+ - modification of binding order: 	[ 0  1  4  3  2  5 10  7  8  9  6 11 12 13 14]
+
+ - modification of body rotation with qrotate by 
+	None
+ - optimally infered rotation: 
+	tensor([[1., 0., 0., 0.]])
+
+ - modification of body translation: None
+ - optimally infered translation: 
+	tensor([0., 0., 0.])
+
+ - number of observations: 	15
+ - number of features: 		15
+ - number of dimensions: 	3
+ - number of tuning cycles: 	5
+ - size of tuning horizon: 	20
+ - loss function: 		SmoothL1Loss()
+	> beta: 	0.0001
+	> reduction: 	sum
+ - model: 			CORE_NET(
+  (lstm): LSTMCell(45, 150)
+  (linear): Linear(in_features=150, out_features=45, bias=True)
+)
+ - learning rate (state): 	0.0
+ - learning rates:
+	> binding: 		0.1
+	> rotation: 		0.1
+	> translation: 		0.1
+ - momenta:
+	> binding: 		0.9
+	> rotation: 		0.8
+	> translation: 		0.8

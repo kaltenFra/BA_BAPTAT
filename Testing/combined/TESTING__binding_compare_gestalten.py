@@ -162,19 +162,19 @@ def main():
     num_dimensions = 3
 
     test = COMP_GEST_BINDING(
-        num_observations, 
         num_input_features, 
-        num_dimensions) 
+        num_observations, 
+        num_dimensions)  
 
     
     modification = [
-        ('bind', None, None)           
-        # ('bind', 'det', None) 
+        # ('bind', None, None)           
+        ('bind', 'det', None) 
         # ('bind', 'rand', None) 
     ]
 
-    sample_nums = [22]
-    # sample_nums = [990, 550, 450]
+    # sample_nums = [22]
+    sample_nums = [990, 550, 450]
 
     # tested_dimensions = [3]
     tested_dimensions = [3, 6, 7]

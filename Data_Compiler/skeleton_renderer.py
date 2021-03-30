@@ -40,7 +40,7 @@ class SKEL_RENDERER():
         pygame.display.set_caption("3D skeleton")
         self.screen = pygame.display.set_mode((self.width, self.height))
         self.clock = pygame.time.Clock()
-        self.fps = 10
+        self.fps = 100
 
         run = True
         frame_cnt = 0
@@ -96,23 +96,43 @@ class SKEL_RENDERER():
             
             proj_skeleton = proj_skeleton.int()
 
-            self.connection(0,1, proj_skeleton)
-            self.connection(1,2, proj_skeleton)
-            self.connection(3,4, proj_skeleton)
-            self.connection(4,5, proj_skeleton)
+            if num_features == 15: 
+                self.connection(0,1, proj_skeleton)
+                self.connection(1,2, proj_skeleton)
+                self.connection(3,4, proj_skeleton)
+                self.connection(4,5, proj_skeleton)
 
-            self.connection(0,6, proj_skeleton)
-            self.connection(3,6, proj_skeleton)
+                self.connection(0,6, proj_skeleton)
+                self.connection(3,6, proj_skeleton)
 
-            self.connection(6,7, proj_skeleton)
-            self.connection(7,8, proj_skeleton)
+                self.connection(6,7, proj_skeleton)
+                self.connection(7,8, proj_skeleton)
 
-            self.connection(7,9, proj_skeleton)
-            self.connection(9,10, proj_skeleton)
-            self.connection(10,11, proj_skeleton)
-            self.connection(7,12, proj_skeleton)
-            self.connection(12,13, proj_skeleton)
-            self.connection(13,14, proj_skeleton)
+                self.connection(7,9, proj_skeleton)
+                self.connection(9,10, proj_skeleton)
+                self.connection(10,11, proj_skeleton)
+                self.connection(7,12, proj_skeleton)
+                self.connection(12,13, proj_skeleton)
+                self.connection(13,14, proj_skeleton)
+
+            elif num_features >= 16: 
+                self.connection(0,1, proj_skeleton)
+                self.connection(1,2, proj_skeleton)
+                self.connection(3,4, proj_skeleton)
+                self.connection(4,5, proj_skeleton)
+
+                self.connection(0,6, proj_skeleton)
+                self.connection(3,6, proj_skeleton)
+
+                self.connection(6,7, proj_skeleton)
+                self.connection(7,9, proj_skeleton)
+
+                self.connection(7,10, proj_skeleton)
+                self.connection(10,11, proj_skeleton)
+                self.connection(11,12, proj_skeleton)
+                self.connection(7,13, proj_skeleton)
+                self.connection(13,14, proj_skeleton)
+                self.connection(14,15, proj_skeleton)
 
             
 
@@ -131,23 +151,28 @@ def main():
     skelrenderer = SKEL_RENDERER()
     # data = torch.load("BA_BAPTAT/Grafics/CombinedBindingRuns/combination_t_b_r_gest_parameter_settings/2021_Mar_25-18_28_07/b_r_t_num_tuning_cycles_2/S35T07/"+"final_predictions.pt")
     # data = torch.load("Grafics/CombinedBindingRuns/combination_t_b_r_gest_parameter_settings/2021_Mar_27-17_03_09-decay-dgrad/b_r_t_num_tuning_cycles_3/S35T07/"+"final_predictions.pt")
-    data = torch.load("Grafics/CombinedBindingRuns/combination_t_b_r_gest_parameter_settings/2021_Mar_27-17_03_09-decay-dgrad/b_r_t_num_tuning_cycles_3/S35T07/"+"final_inputs.pt")
+    # data = torch.load("Grafics/CombinedBindingRuns/combination_t_b_r_gest_parameter_settings/2021_Mar_27-17_03_09-decay-dgrad/b_r_t_num_tuning_cycles_3/S35T07/"+"final_inputs.pt")
+    # data = torch.load('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT/Grafics/GestaltRuns/compare_gestalten_rotation/2021_Mar_29-20_31_47/r_dimensions_6/S35T07_qrotated/final_inputs.pt')
+    data = torch.load('D:/Uni/Kogni/Bachelorarbeit/Code/BA_BAPTAT/Grafics/GestaltRuns/compare_gestalten_rotation/2021_Mar_29-20_31_47/r_dimensions_7/S35T07/final_inputs.pt')
     # data = torch.load("BA_BAPTAT/Grafics/SeparateBindingRuns/binding_sigmoid_rw_cw_rcw_gest/2021_Mar_26-14_45_05/rcwSM/S35T07_rebinded")
     # data = torch.load("BA_BAPTAT/Grafics/SeparateRotationRuns/rotation_euler_vs_quaternion/saveruns/2021_Mar_26-09_24_18/rotationType_qrotate/S35T07_qrotated/final_inputs")
     # data = torch.load("BA_BAPTAT/Grafics/SeparateRotationRuns/rotation_euler_vs_quaternion/saveruns/2021_Mar_26-09_24_18/rotationType_qrotate/S35T07_qrotated/final_predictions")
     gestalt = True
-    num_frames = 1000
+    print(data.shape)
+
+    num_frames = 991
     num_features = 15
+    num_dimensions = 7
 
     if gestalt:
-        data = data.view(num_frames-1, num_features, 7)
+        data = data.view(num_frames-1, num_features, num_dimensions)
         pos = data[:,:,:3]
         dir = data[:,:,3:6]
         mag = data[:,:,-1]
 
         skelrenderer.render(pos, dir, mag, gestalt)
     else:
-        data = data.view(num_frames, num_features, 3)
+        data = data.view(num_frames, num_features, num_dimensions)
         skelrenderer.render(data, None, None, gestalt)
 
 

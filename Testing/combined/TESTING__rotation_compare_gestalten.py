@@ -50,7 +50,7 @@ class COMP_GEST_ROTATION(TESTER):
         at_momentum_translation = 0.3
 
         grad_calc_binding = 'weightedInTunHor'
-        grad_calc_rotation = 'weightedInTunHor'
+        grad_calc_rotation = 'meanOfTunHor'
         grad_calc_translation = 'meanOfTunHor'
         grad_calculations = [grad_calc_binding, grad_calc_rotation, grad_calc_translation]
         
@@ -76,11 +76,14 @@ class COMP_GEST_ROTATION(TESTER):
 
             # possible models to use 
             if self.num_dimensions == 7:
-                model_path = 'CoreLSTM/models/ADAM/LSTM_24_gest.pt'
+                model_path = 'BA_BAPTAT/CoreLSTM/models/ADAM/LSTM_24_gest.pt'
+                # model_path = 'CoreLSTM/models/ADAM/LSTM_24_gest.pt'
             elif self.num_dimensions == 6:
-                model_path = 'CoreLSTM/models/ADAM/LSTM_25_vel.pt'
+                model_path = 'BA_BAPTAT/CoreLSTM/models/ADAM/LSTM_25_vel.pt'
+                # model_path = 'CoreLSTM/models/ADAM/LSTM_25_vel.pt'
             elif self.num_dimensions == 3: 
-                model_path = 'CoreLSTM/models/ADAM/LSTM_26_pos.pt'
+                model_path = 'BA_BAPTAT/CoreLSTM/models/ADAM/LSTM_26_pos.pt'
+                # model_path = 'CoreLSTM/models/ADAM/LSTM_26_pos.pt'
             else: 
                 print('ERROR: Unvalid number of dimensions!\nPlease use 3, 6, or 7.')
                 exit()
@@ -160,8 +163,8 @@ def main():
     rotation_type = 'qrotate'
 
     test = COMP_GEST_ROTATION(
-        num_observations, 
         num_input_features, 
+        num_observations, 
         num_dimensions) 
 
     
@@ -171,6 +174,7 @@ def main():
         # ('rotate', 'rand', rotation_type)
     ]
 
+    # sample_nums = [23]
     sample_nums = [990, 550, 450]
 
     tested_dimensions = [3, 6, 7]

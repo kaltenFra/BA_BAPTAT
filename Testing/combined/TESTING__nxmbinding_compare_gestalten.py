@@ -21,7 +21,7 @@ class COMP_GEST_NxM_BINDING(TESTER):
         print('Initialized experiment.')
 
 
-    def perform_experiment(self, sample_nums, modification, dimension_values): 
+    def perform_experiment(self, sample_nums, modification, dimension_values, index_additional_features): 
 
         ## General parameters
         # possible loss functions
@@ -62,7 +62,6 @@ class COMP_GEST_NxM_BINDING(TESTER):
         grad_biases = [grad_bias_binding, grad_bias_rotation, grad_bias_translation]
 
         nxm_bool = True
-        index_additional_features = [6, 16]
         initial_value_dummie_line = 0.1
         nxm_enhancement = 'square'
         nxm_outcast_line_scaler = 0.1
@@ -154,13 +153,17 @@ class COMP_GEST_NxM_BINDING(TESTER):
        
 def main(): 
     # set the following parameters
-    num_observations = 15
+    # num_observations = 16
+    num_observations = 17
     num_input_features = 15
     num_dimensions = 3
 
+    # index_additional_features = [8]
+    index_additional_features = [8, 16]
+
     test = COMP_GEST_NxM_BINDING(
-        num_observations, 
         num_input_features, 
+        num_observations, 
         num_dimensions) 
 
     
@@ -171,7 +174,13 @@ def main():
     ]
 
     sample_nums = [990, 550]
+    # sample_nums = [22]
 
     tested_dimensions = [3, 6, 7]
 
-    test.perform_experiment(sample_nums, modification, tested_dimensions)
+    test.perform_experiment(sample_nums, modification, tested_dimensions, index_additional_features)
+
+    
+
+if __name__ == "__main__":
+    main()
